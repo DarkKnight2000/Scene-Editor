@@ -36,7 +36,7 @@
         "transform": {
           "position": [
             0,
-            420
+            280
           ],
           "rotation": 0.0,
           "scale": [
@@ -48,8 +48,8 @@
         },
         "sprite": {
           "size": [
-            1800,
-            60
+            1200,
+            40
           ],
           "tint": [
             70,
@@ -65,8 +65,8 @@
             0
           ],
           "size": [
-            1800,
-            60
+            1200,
+            40
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -82,8 +82,8 @@
       "components": {
         "transform": {
           "position": [
-            -520,
-            200
+            -347,
+            133
           ],
           "rotation": 20,
           "scale": [
@@ -95,8 +95,8 @@
         },
         "sprite": {
           "size": [
-            600,
-            30
+            400,
+            20
           ],
           "tint": [
             110,
@@ -112,8 +112,8 @@
             0
           ],
           "size": [
-            600,
-            30
+            400,
+            20
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -129,8 +129,8 @@
       "components": {
         "transform": {
           "position": [
-            300,
-            300
+            200,
+            200
           ],
           "rotation": 0.0,
           "scale": [
@@ -142,8 +142,8 @@
         },
         "sprite": {
           "size": [
-            260,
-            180
+            174,
+            120
           ],
           "tint": [
             240,
@@ -159,8 +159,8 @@
             0
           ],
           "size": [
-            260,
-            180
+            174,
+            120
           ],
           "isTrigger": true,
           "density": 1.0,
@@ -176,8 +176,8 @@
       "components": {
         "transform": {
           "position": [
-            80,
-            330
+            53,
+            240
           ],
           "rotation": 0,
           "scale": [
@@ -189,8 +189,8 @@
         },
         "sprite": {
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "tint": [
             90,
@@ -206,8 +206,8 @@
             0
           ],
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -231,8 +231,8 @@
       "components": {
         "transform": {
           "position": [
-            90,
-            268
+            53,
+            200
           ],
           "rotation": 0,
           "scale": [
@@ -244,8 +244,8 @@
         },
         "sprite": {
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "tint": [
             120,
@@ -261,8 +261,8 @@
             0
           ],
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -286,8 +286,8 @@
       "components": {
         "transform": {
           "position": [
-            80,
-            206
+            53,
+            160
           ],
           "rotation": 0,
           "scale": [
@@ -299,8 +299,8 @@
         },
         "sprite": {
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "tint": [
             150,
@@ -316,8 +316,8 @@
             0
           ],
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -341,8 +341,8 @@
       "components": {
         "transform": {
           "position": [
-            90,
-            144
+            53,
+            120
           ],
           "rotation": 0,
           "scale": [
@@ -354,8 +354,8 @@
         },
         "sprite": {
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "tint": [
             180,
@@ -371,8 +371,8 @@
             0
           ],
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -396,8 +396,8 @@
       "components": {
         "transform": {
           "position": [
-            80,
-            82
+            53,
+            80
           ],
           "rotation": 0,
           "scale": [
@@ -409,8 +409,8 @@
         },
         "sprite": {
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "tint": [
             210,
@@ -426,8 +426,8 @@
             0
           ],
           "size": [
-            60,
-            60
+            40,
+            40
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -451,8 +451,8 @@
       "components": {
         "transform": {
           "position": [
-            320,
-            -200
+            213,
+            -133
           ],
           "rotation": 30,
           "scale": [
@@ -464,8 +464,8 @@
         },
         "sprite": {
           "size": [
-            50,
-            50
+            34,
+            34
           ],
           "tint": [
             230,
@@ -481,8 +481,8 @@
             0
           ],
           "size": [
-            50,
-            50
+            34,
+            34
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -506,8 +506,8 @@
       "components": {
         "transform": {
           "position": [
-            -600,
-            -250
+            -400,
+            -167
           ],
           "rotation": 0.0,
           "scale": [
@@ -519,8 +519,8 @@
         },
         "sprite": {
           "size": [
-            70,
-            70
+            46,
+            46
           ],
           "tint": [
             240,
@@ -536,8 +536,8 @@
             0
           ],
           "size": [
-            70,
-            70
+            46,
+            46
           ],
           "isTrigger": false,
           "density": 1.0,
@@ -561,8 +561,8 @@
       "components": {
         "transform": {
           "position": [
-            -150,
-            300
+            -100,
+            237
           ],
           "rotation": 0.0,
           "scale": [
@@ -574,8 +574,8 @@
         },
         "sprite": {
           "size": [
-            40,
-            70
+            26,
+            46
           ],
           "tint": [
             80,
@@ -591,8 +591,8 @@
             0
           ],
           "size": [
-            40,
-            70
+            26,
+            46
           ],
           "isTrigger": false,
           "density": 1.0,
