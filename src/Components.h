@@ -38,10 +38,15 @@ struct TransformComponent {
     bool inheritScale = true;
 };
 
-// Colored rectangle for now; a texture reference comes later.
+// What a sprite draws, filling its size: a rectangle, a circle (an ellipse when the size
+// isn't square) or a triangle pointing up (down when flipped by a negative y scale).
+enum class SpriteShape { Rectangle, Circle, Triangle };
+
+// A coloured shape for now; a texture reference comes later.
 struct SpriteComponent {
     Vector2 size{64.0f, 64.0f};
     Color tint = WHITE;
+    SpriteShape shape = SpriteShape::Rectangle;
 };
 
 struct BoxColliderComponent {

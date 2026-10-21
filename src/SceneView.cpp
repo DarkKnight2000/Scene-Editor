@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -151,10 +152,67 @@ void drawTextInRect(Font font, const std::string& text, Rectangle rect, float fo
     }
 }
 
+// A point in sprite units (before scaling, relative to the centre) placed in the scene.
+Vector2 spriteToScene(const Pose& pose, Vector2 local) {
+    return Vector2Add(pose.position, Vector2Rotate(Vector2Multiply(local, pose.scale), pose.rotation * DEG2RAD));
+}
+
+// raylib only draws triangles whose corners run counter-clockwise on screen.
+void drawTriangleAnyOrder(Vector2 a, Vector2 b, Vector2 c, Color color) {
+    if ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0.0f) {
+        std::swap(b, c);
+    }
+    DrawTriangle(a, b, c, color);
+}
+
+// The same shapes the exported scene_draw draws.
+void drawSprite(const Pose& pose, const SpriteComponent& sprite) {
+    const float hw = sprite.size.x / 2.0f;
+    const float hh = sprite.size.y / 2.0f;
+    switch (sprite.shape) {
+    case SpriteShape::Circle: {
+        constexpr int kSegments = 36;
+        Vector2 previous = spriteToScene(pose, {hw, 0.0f});
+        for (int i = 1; i <= kSegments; ++i) {
+            const float angle = 2.0f * PI * static_cast<float>(i) / kSegments;
+            const Vector2 next = spriteToScene(pose, {hw * std::cos(angle), hh * std::sin(angle)});
+            drawTriangleAnyOrder(pose.position, previous, next, sprite.tint);
+            previous = next;
+        }
+        break;
+    }
+    case SpriteShape::Triangle:
+        drawTriangleAnyOrder(spriteToScene(pose, {0.0f, -hh}), spriteToScene(pose, {-hw, hh}),
+                             spriteToScene(pose, {hw, hh}), sprite.tint);
+        break;
+    case SpriteShape::Rectangle: {
+        const float w = sprite.size.x * std::fabs(pose.scale.x);
+        const float h = sprite.size.y * std::fabs(pose.scale.y);
+        DrawRectanglePro({pose.position.x, pose.position.y, w, h}, {w / 2.0f, h / 2.0f}, pose.rotation, sprite.tint);
+        break;
+    }
+    }
+}
+
 bool spriteContains(const Pose& pose, const SpriteComponent& sprite, Vector2 point) {
-    const Vector2 local = Vector2Rotate(Vector2Subtract(point, pose.position), -pose.rotation * DEG2RAD);
-    return std::fabs(local.x) <= sprite.size.x * std::fabs(pose.scale.x) / 2.0f &&
-           std::fabs(local.y) <= sprite.size.y * std::fabs(pose.scale.y) / 2.0f;
+    if (pose.scale.x == 0.0f || pose.scale.y == 0.0f || sprite.size.x <= 0.0f || sprite.size.y <= 0.0f) {
+        return false;
+    }
+    // Back to sprite units: undo position, rotation and scale.
+    const Vector2 rotated = Vector2Rotate(Vector2Subtract(point, pose.position), -pose.rotation * DEG2RAD);
+    const Vector2 local{rotated.x / pose.scale.x, rotated.y / pose.scale.y};
+    const float hw = sprite.size.x / 2.0f;
+    const float hh = sprite.size.y / 2.0f;
+    switch (sprite.shape) {
+    case SpriteShape::Circle:
+        return (local.x / hw) * (local.x / hw) + (local.y / hh) * (local.y / hh) <= 1.0f;
+    case SpriteShape::Triangle:
+        // Apex at the top centre: the half-width grows from 0 there to hw at the bottom.
+        return local.y >= -hh && local.y <= hh && std::fabs(local.x) <= hw * (local.y + hh) / (2.0f * hh);
+    case SpriteShape::Rectangle:
+        break;
+    }
+    return std::fabs(local.x) <= hw && std::fabs(local.y) <= hh;
 }
 } // namespace
 
@@ -350,9 +408,7 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
         }
         const Pose pose = scene.finalPose(e);
         if (const auto* sprite = registry.try_get<SpriteComponent>(e)) {
-            const float w = sprite->size.x * std::fabs(pose.scale.x);
-            const float h = sprite->size.y * std::fabs(pose.scale.y);
-            DrawRectanglePro({pose.position.x, pose.position.y, w, h}, {w / 2.0f, h / 2.0f}, pose.rotation, sprite->tint);
+            drawSprite(pose, *sprite);
         } else {
             drawMarker(pose.position, kMarkerColor, px);
         }

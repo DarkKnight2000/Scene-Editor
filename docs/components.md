@@ -4,7 +4,7 @@ Components are optional data attached to an entity. Scene entities can have:
 
 | Component | Type | Fields |
 |---|---|---|
-| Sprite | `SceneSprite` | `size` (before scaling), `tint`. Drawn as a filled rectangle centred on the entity. |
+| Sprite | `SceneSprite` | `size` (before scaling), `tint`, `shape`. A filled shape centred on the entity. |
 | Box collider | `SceneBoxCollider` | `offset` (from the entity's position, before scaling), `size`, `is_trigger` |
 
 UI elements have their own components; see [UI](ui.md).
@@ -31,6 +31,34 @@ static void components_basics(SceneData *scene, int id) {
     (void)sprite;
 }
 ```
+
+## Sprite shapes
+
+A sprite draws a shape that fills its size:
+
+| `shape` | Draws |
+|---|---|
+| `SCENE_SHAPE_RECTANGLE` | a rectangle (a new sprite's shape) |
+| `SCENE_SHAPE_CIRCLE` | a circle, or an ellipse when the size isn't square |
+| `SCENE_SHAPE_TRIANGLE` | a triangle pointing up; down when flipped by a negative y scale |
+
+All three rotate and scale with the entity. `scene_set_sprite` keeps the shape of an
+existing sprite, so set the shape after it:
+
+```c
+static int add_coin(SceneData *scene, Vector2 at) {
+    const int coin = scene_add_entity(scene, "Coin", SCENE_WORLD);
+    scene_set_sprite(scene, coin, (Vector2){24.0f, 24.0f}, GOLD);
+    scene_set_sprite_shape(scene, coin, SCENE_SHAPE_CIRCLE);
+    scene_place_entity(scene, coin, at);
+    return coin;
+}
+```
+
+`scene_set_sprite_shape` does nothing if the entity has no sprite. You can also change
+`scene_get_sprite(scene, id)->shape` directly.
+
+## Pointer lifetime
 
 A component pointer stays valid until a component of the same type is added or removed,
 in any entity. Removing an entity removes all its components.

@@ -97,13 +97,22 @@ void fromJson(const json& j, TransformComponent& t) {
     read(j, "inheritScale", t.inheritScale);
 }
 
+constexpr const char* kShapeNames[] = {"rectangle", "circle", "triangle"};
+
 json toJson(const SpriteComponent& s) {
-    return {{"size", toJson(s.size)}, {"tint", toJson(s.tint)}};
+    return {{"size", toJson(s.size)}, {"tint", toJson(s.tint)}, {"shape", kShapeNames[static_cast<int>(s.shape)]}};
 }
 
 void fromJson(const json& j, SpriteComponent& s) {
     read(j, "size", s.size);
     read(j, "tint", s.tint);
+    std::string shape;
+    read(j, "shape", shape);
+    for (int i = 0; i < 3; ++i) {
+        if (shape == kShapeNames[i]) {
+            s.shape = static_cast<SpriteShape>(i);
+        }
+    }
 }
 
 json toJson(const BoxColliderComponent& c) {
@@ -241,6 +250,10 @@ void drawTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
 
 void drawSprite(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     auto& s = scene.registry().get<SpriteComponent>(e);
+    int shape = static_cast<int>(s.shape);
+    if (ui::combo(grid.row("Shape"), &s.shape, {"Rectangle", "Circle", "Triangle"}, &shape)) {
+        s.shape = static_cast<SpriteShape>(std::clamp(shape, 0, 2));
+    }
     vec2Row(grid, "Size", s.size, 0.5f);
     colorRow(grid, "Tint", s.tint);
 }

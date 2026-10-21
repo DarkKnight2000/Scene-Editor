@@ -250,6 +250,10 @@ void {{prefix}}_draw(SceneData *scene, int *current);
         if (const auto* sprite = registry.try_get<SpriteComponent>(e)) {
             body << "    scene_set_sprite(scene, " << ref << ", " << vector2(sprite->size) << ", " << color(sprite->tint)
                  << ");\n";
+            if (sprite->shape != SpriteShape::Rectangle) {
+                body << "    scene_set_sprite_shape(scene, " << ref << ", "
+                     << (sprite->shape == SpriteShape::Circle ? "SCENE_SHAPE_CIRCLE" : "SCENE_SHAPE_TRIANGLE") << ");\n";
+            }
         }
         if (const auto* collider = registry.try_get<BoxColliderComponent>(e)) {
             body << "    scene_set_collider(scene, " << ref << ", " << vector2(collider->offset) << ", "
@@ -826,9 +830,18 @@ typedef struct SceneEntity {
 } SceneEntity;
 
 /* Components */
+/* What a sprite draws, filling its size: a rectangle, a circle (an ellipse when the size
+   isn't square) or a triangle pointing up (down when flipped by a negative y scale). */
+typedef enum SceneShape {
+    SCENE_SHAPE_RECTANGLE,
+    SCENE_SHAPE_CIRCLE,
+    SCENE_SHAPE_TRIANGLE
+} SceneShape;
+
 typedef struct SceneSprite {
     Vector2 size; /* before scaling */
     Color tint;
+    SceneShape shape; /* a new sprite is a rectangle */
 } SceneSprite;
 
 typedef struct SceneBoxCollider {
@@ -990,6 +1003,8 @@ bool scene_set_parent(SceneData *scene, int id, int parent, bool keep_placement)
    removed. */
 SceneSprite *scene_set_sprite(SceneData *scene, int id, Vector2 size, Color tint);
 SceneSprite *scene_get_sprite(SceneData *scene, int id);
+/* Sets the shape of the entity's sprite (nothing happens if it has none). */
+void scene_set_sprite_shape(SceneData *scene, int id, SceneShape shape);
 void scene_remove_sprite(SceneData *scene, int id);
 SceneBoxCollider *scene_set_collider(SceneData *scene, int id, Vector2 offset, Vector2 size, bool is_trigger);
 SceneBoxCollider *scene_get_collider(SceneData *scene, int id);
@@ -1461,12 +1476,23 @@ bool scene_set_parent(SceneData *scene, int id, int parent, bool keep_placement)
 /* ----- Components ----- */
 
 SceneSprite *scene_set_sprite(SceneData *scene, int id, Vector2 size, Color tint) {
+    const bool existed = is_live(scene, id) && sprite_pool_get(&scene->sprites, id) != NULL;
     SceneSprite *sprite = is_live(scene, id) ? sprite_pool_emplace(memory_of(scene), &scene->sprites, id) : NULL;
     if (sprite != NULL) {
         sprite->size = size;
         sprite->tint = tint;
+        if (!existed) {
+            sprite->shape = SCENE_SHAPE_RECTANGLE; /* replacing keeps the shape */
+        }
     }
     return sprite;
+}
+
+void scene_set_sprite_shape(SceneData *scene, int id, SceneShape shape) {
+    SceneSprite *sprite = scene_get_sprite(scene, id);
+    if (sprite != NULL) {
+        sprite->shape = shape;
+    }
 }
 
 SceneSprite *scene_get_sprite(SceneData *scene, int id) {
@@ -1623,6 +1649,52 @@ void scene_place_entity(SceneData *scene, int id, Vector2 point) {
 
 /* ----- Drawing ----- */
 
+#define SCENE_CIRCLE_SEGMENTS 36
+
+/* A point in sprite units (before scaling, relative to the centre) placed in the scene. */
+static Vector2 sprite_to_scene(ScenePose pose, float x, float y) {
+    Vector2 p;
+    p.x = x * pose.scale.x;
+    p.y = y * pose.scale.y;
+    p = rotate(p, pose.rotation);
+    p.x += pose.position.x;
+    p.y += pose.position.y;
+    return p;
+}
+
+/* raylib only draws triangles whose corners run counter-clockwise on screen. */
+static void draw_triangle_any_order(Vector2 a, Vector2 b, Vector2 c, Color color) {
+    if ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0.0f) {
+        const Vector2 t = b;
+        b = c;
+        c = t;
+    }
+    DrawTriangle(a, b, c, color);
+}
+
+static void draw_sprite(const SceneSprite *sprite, ScenePose pose) {
+    const float hw = sprite->size.x / 2.0f;
+    const float hh = sprite->size.y / 2.0f;
+    if (sprite->shape == SCENE_SHAPE_CIRCLE) {
+        Vector2 previous = sprite_to_scene(pose, hw, 0.0f);
+        int i;
+        for (i = 1; i <= SCENE_CIRCLE_SEGMENTS; ++i) {
+            const float angle = 2.0f * PI * (float)i / SCENE_CIRCLE_SEGMENTS;
+            const Vector2 next = sprite_to_scene(pose, hw * cosf(angle), hh * sinf(angle));
+            draw_triangle_any_order(pose.position, previous, next, sprite->tint);
+            previous = next;
+        }
+    } else if (sprite->shape == SCENE_SHAPE_TRIANGLE) {
+        draw_triangle_any_order(sprite_to_scene(pose, 0.0f, -hh), sprite_to_scene(pose, -hw, hh),
+                                sprite_to_scene(pose, hw, hh), sprite->tint);
+    } else {
+        const float w = sprite->size.x * fabsf(pose.scale.x);
+        const float h = sprite->size.y * fabsf(pose.scale.y);
+        DrawRectanglePro((Rectangle){pose.position.x, pose.position.y, w, h}, (Vector2){w / 2.0f, h / 2.0f},
+                         pose.rotation, sprite->tint);
+    }
+}
+
 void scene_draw(SceneData *scene) {
     int i;
     scene_update_poses(scene);
@@ -1632,11 +1704,7 @@ void scene_draw(SceneData *scene) {
         const int id = scene->order[i];
         const SceneSprite *sprite = sprite_pool_get(&scene->sprites, id);
         if (sprite != NULL) {
-            const ScenePose pose = scene->poses[id];
-            const float w = sprite->size.x * fabsf(pose.scale.x);
-            const float h = sprite->size.y * fabsf(pose.scale.y);
-            DrawRectanglePro((Rectangle){pose.position.x, pose.position.y, w, h}, (Vector2){w / 2.0f, h / 2.0f},
-                             pose.rotation, sprite->tint);
+            draw_sprite(sprite, scene->poses[id]);
         }
     }
 }
@@ -1838,7 +1906,7 @@ bool writeProjectMain(const std::string& projectName, const std::vector<std::str
 // works normally). F11 or Alt+Enter toggles windowed mode.
 // Controls: Left / Right    switch scenes (done by the scenes themselves, see example_scene_logic)
 //           M               cycle through the exported scale modes
-//           click           add an entity at the mouse (not on the UI: the element under
+//           click           add an entity with a random shape at the mouse (not on the UI: the element under
 //                           the mouse is shown instead)
 //           Delete          remove the last entity added
 //           C               show / hide colliders
@@ -2002,6 +2070,12 @@ static int test_scene_api(SceneManager *manager, int id) {
         scene_set_collider(scene, spawned, (Vector2){0.0f, 0.0f}, (Vector2){4.0f, 4.0f}, true);
         failures += check(scene_get_collider(scene, spawned) != NULL && scene_get_collider(scene, spawned)->is_trigger,
                           "get collider after set", name);
+        failures += check(scene_get_sprite(scene, spawned)->shape == SCENE_SHAPE_RECTANGLE, "a new sprite is a rectangle",
+                          name);
+        scene_set_sprite_shape(scene, spawned, SCENE_SHAPE_TRIANGLE);
+        scene_set_sprite(scene, spawned, (Vector2){12.0f, 12.0f}, BLUE);
+        failures += check(scene_get_sprite(scene, spawned)->shape == SCENE_SHAPE_TRIANGLE,
+                          "replacing a sprite keeps its shape", name);
         scene_remove_sprite(scene, spawned);
         failures += check(scene_get_sprite(scene, spawned) == NULL && scene->sprites.count == sprites_before - 1,
                           "remove sprite", name);
@@ -2304,6 +2378,7 @@ int main(int argc, char **argv) {
                 const int id = scene_add_entity(scene, "Added", SCENE_WORLD);
                 scene_set_sprite(scene, id, (Vector2){40.0f, 40.0f},
                                  ColorFromHSV((float)GetRandomValue(0, 359), 0.6f, 0.95f));
+                scene_set_sprite_shape(scene, id, (SceneShape)GetRandomValue(SCENE_SHAPE_RECTANGLE, SCENE_SHAPE_TRIANGLE));
                 scene_place_entity(scene, id, point);
                 last_added[manager.current] = id;
             }

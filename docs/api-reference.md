@@ -29,7 +29,8 @@ when the id isn't a live entity of the right kind.
 | `SceneEntity` | `name`, `parent`, `transform`, `alive` |
 | `SceneTransform` | `position`, `rotation` (degrees), `scale`, `inherit_rotation`, `inherit_scale` |
 | `ScenePose` | final `position`, `rotation`, `scale` after parents and the World |
-| `SceneSprite` | `size`, `tint` |
+| `SceneSprite` | `size`, `tint`, `shape` |
+| `SceneShape` | `SCENE_SHAPE_RECTANGLE`, `SCENE_SHAPE_CIRCLE` (ellipse when not square), `SCENE_SHAPE_TRIANGLE` (points up) |
 | `SceneBoxCollider` | `offset`, `size`, `is_trigger` |
 | `SceneUIRectTransform` | `anchor_min`, `anchor_max`, `pivot`, `position`, `size` |
 | `SceneUIRectangle` | `color` |
@@ -103,6 +104,7 @@ when the id isn't a live entity of the right kind.
 |---|---|
 | `SceneSprite *scene_set_sprite(SceneData *scene, int id, Vector2 size, Color tint)` | add or replace |
 | `SceneSprite *scene_get_sprite(SceneData *scene, int id)` | or NULL |
+| `void scene_set_sprite_shape(SceneData *scene, int id, SceneShape shape)` | rectangle, circle or triangle; new sprites are rectangles |
 | `void scene_remove_sprite(SceneData *scene, int id)` | |
 | `SceneBoxCollider *scene_set_collider(SceneData *scene, int id, Vector2 offset, Vector2 size, bool is_trigger)` | add or replace |
 | `SceneBoxCollider *scene_get_collider(SceneData *scene, int id)` | or NULL |
