@@ -889,6 +889,15 @@ void Workspace::play() {
 bool Workspace::exportProject() {
     const std::filesystem::path outDir = m_project.root() / "export";
 
+    // Save open scenes first (Export and Play both come here), so the scene files match what
+    // gets exported. Never-saved scenes have no file yet; they're reported below.
+    for (const auto& doc : m_docs) {
+        if (!doc->path.empty() && computeDirty(*doc)) {
+            doc->history.flush();
+            saveDocument(*doc, doc->path);
+        }
+    }
+
     // Files you may edit by hand, and when Project Settings says to write them.
     const ExportSettings& options = m_project.exportSettings;
     struct EditableFile {
@@ -980,7 +989,8 @@ bool Workspace::exportProject() {
 
     for (const auto& doc : m_docs) {
         if (doc->path.empty() && computeDirty(*doc)) {
-            logWarning("Export: " + doc->displayName() + " isn't saved in the project yet, so it wasn't exported");
+            logWarning("Export: " + doc->displayName() +
+                       " has never been saved (use Save As to give it a name), so it wasn't exported");
         }
     }
 
