@@ -697,6 +697,7 @@ void Workspace::openProjectSettings() {
     m_settingsHeight = static_cast<float>(m_project.display.height);
     m_settingsMode = 0;
     m_settingsEasyMemory = m_project.easyMemoryDir;
+    m_settingsExport = m_project.exportSettings;
     for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
         if (kScaleModes[i] == m_project.display.scaleMode) {
             m_settingsMode = static_cast<int>(i);
@@ -706,7 +707,7 @@ void Workspace::openProjectSettings() {
 }
 
 void Workspace::drawProjectSettingsDialog() {
-    const Rectangle box = beginModal(760.0f, 370.0f);
+    const Rectangle box = beginModal(760.0f, 560.0f);
     bool close = ui::windowBox(box, "Project Settings");
     const float lx = box.x + 16.0f;
     const float fx = box.x + 200.0f;
@@ -768,6 +769,48 @@ void Workspace::drawProjectSettingsDialog() {
                     : "easy_memory.h not found here: exports will fail.",
               found ? dim : Color{230, 120, 90, 255});
 
+    // Export: which scale modes the runtime supports, and when files you may edit are written.
+    DrawLineV({lx, box.y + 312.0f}, {box.x + box.width - 16.0f, box.y + 312.0f}, ui::styleColor(LINE_COLOR));
+    ui::label({lx, box.y + 324.0f, 180.0f, 26.0f}, "Exported modes", text);
+    const int defaultMode = std::clamp(m_settingsMode, 0, 2);
+    m_settingsExport.scaleModes[defaultMode] = true; // the default mode is always exported
+    for (int i = 0; i < 3; ++i) {
+        const Rectangle r{fx + static_cast<float>(i) * 130.0f, box.y + 327.0f, 20.0f, 20.0f};
+        if (i == defaultMode) {
+            GuiDisable();
+        }
+        ui::checkbox(r, &m_settingsExport.scaleModes[i]);
+        GuiEnable();
+        ui::label({r.x + 26.0f, box.y + 324.0f, 100.0f, 26.0f}, scaleModeName(kScaleModes[i]),
+                  i == defaultMode ? dim : text);
+    }
+
+    std::vector<std::string> policies;
+    for (const ExportPolicy policy : kExportPolicies) {
+        policies.emplace_back(exportPolicyLabel(policy));
+    }
+    struct FileRow {
+        const char* label;
+        ExportPolicy* policy;
+    };
+    const FileRow rows[] = {
+        {"Makefile", &m_settingsExport.makefile},
+        {"project_main.c", &m_settingsExport.projectMain},
+        {".vscode settings", &m_settingsExport.vscodeSettings},
+        {".gitignore", &m_settingsExport.gitignore},
+    };
+    // Bottom row first: an open dropdown draws over the rows below it.
+    for (int i = static_cast<int>(std::size(rows)) - 1; i >= 0; --i) {
+        const float y = box.y + 362.0f + static_cast<float>(i) * 32.0f;
+        ui::label({lx, y, 180.0f, 26.0f}, rows[i].label, text);
+        int current = static_cast<int>(*rows[i].policy);
+        if (ui::combo({fx, y, 200.0f, 26.0f}, rows[i].policy, policies, &current)) {
+            *rows[i].policy = kExportPolicies[std::clamp(current, 0, 2)];
+        }
+    }
+    ui::label({fx + 212.0f, box.y + 362.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
+    ui::label({fx + 212.0f, box.y + 394.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
+
     const float by = box.y + box.height - 12.0f - kButtonHeight;
     const bool save = ui::button({box.x + box.width - 12.0f - 120.0f, by, 120.0f, kButtonHeight}, "Save");
     if (ui::button({box.x + box.width - 12.0f - 240.0f, by, 110.0f, kButtonHeight}, "Cancel") ||
@@ -780,6 +823,8 @@ void Workspace::drawProjectSettingsDialog() {
         m_project.display.height = std::clamp(static_cast<int>(std::lround(m_settingsHeight)), 16, 16384);
         m_project.display.scaleMode = kScaleModes[std::clamp(m_settingsMode, 0, 2)];
         m_project.easyMemoryDir = m_settingsEasyMemory.empty() ? Project::defaultEasyMemoryDir() : m_settingsEasyMemory;
+        m_project.exportSettings = m_settingsExport;
+        m_project.exportSettings.includeMode(m_project.display.scaleMode);
         std::string error;
         if (saveProject(m_project, error)) {
             logInfo("Project settings saved: " + std::to_string(m_project.display.width) + "x" +
@@ -807,9 +852,36 @@ void Workspace::play() {
 bool Workspace::exportProject() {
     const std::filesystem::path outDir = m_project.root() / "export";
 
+    // Files you may edit by hand, and when Project Settings says to write them.
+    const ExportSettings& options = m_project.exportSettings;
+    struct EditableFile {
+        std::filesystem::path path;
+        ExportPolicy policy;
+        bool write = false;
+    };
+    EditableFile editable[] = {
+        {outDir / "Makefile", options.makefile},
+        {outDir / "src" / "project_main.c", options.projectMain},
+        {outDir / ".vscode" / "c_cpp_properties.json", options.vscodeSettings},
+        {outDir / ".gitignore", options.gitignore},
+    };
+    std::vector<std::filesystem::path> keep;
+    std::string notWritten;
+    for (EditableFile& file : editable) {
+        std::error_code exists;
+        file.write = file.policy == ExportPolicy::Always ||
+                     (file.policy == ExportPolicy::IfMissing && !std::filesystem::exists(file.path, exists));
+        if (!file.write) {
+            keep.push_back(file.path);
+            notWritten += (notWritten.empty() ? "" : ", ") + file.path.filename().string() + " (" +
+                          (file.policy == ExportPolicy::Never ? "never" : "already there") + ")";
+        }
+    }
+
     // Start clean: drop everything an earlier export generated (renamed / deleted scenes,
-    // older formats). Files the user added to the folder are kept.
-    if (const int removed = removeGeneratedFiles(outDir); removed > 0) {
+    // older formats), except the files that won't be written again. Files the user added
+    // to the folder are kept.
+    if (const int removed = removeGeneratedFiles(outDir, keep); removed > 0) {
         logInfo("Export: replacing " + std::to_string(removed) + " previously generated file(s)");
     }
 
@@ -873,24 +945,23 @@ bool Workspace::exportProject() {
 
     std::string error;
     bool usable = !exported.empty();
-    std::vector<std::string> keptFiles;
-    if (usable && !(writeSceneCommon(outDir, m_project.display, error) && writeScenesHeader(exported, outDir, error) &&
-                    writeSceneManager(exported, outDir, error) &&
-                    writeProjectMain(m_project.name, exported, outDir, error) &&
-                    writeMakefile(m_project.name, exported, outDir, error) &&
-                    writeVSCodeFiles(outDir, m_project.name, keptFiles, error) &&
-                    writeGitignore(outDir, m_project.name, keptFiles, error))) {
+    if (usable && !(writeSceneCommon(outDir, m_project.display, options, error) &&
+                    writeScenesHeader(exported, outDir, error) && writeSceneManager(exported, outDir, error) &&
+                    (!editable[1].write || writeProjectMain(m_project.name, exported, outDir, error)) &&
+                    (!editable[0].write || writeMakefile(m_project.name, exported, options.modeCount(), outDir, error)) &&
+                    (!editable[2].write || writeVSCodeFiles(outDir, m_project.name, error)) &&
+                    (!editable[3].write || writeGitignore(outDir, m_project.name, error)))) {
         logError("Export: " + error);
         ++failed;
         usable = false;
+    }
+    if (!notWritten.empty()) {
+        logInfo("Export: not written, as set in Project Settings: " + notWritten);
     }
     if (usable && !writeEasyMemory(outDir, m_project.easyMemoryPath(), error)) {
         logError("Export: " + error + ". Set the easy_memory folder in Project Settings.");
         ++failed;
         usable = false; // the export can't build without it
-    }
-    for (const std::string& file : keptFiles) {
-        logInfo("Export: kept your " + file + " (its generated-file line was removed)");
     }
     if (files.empty()) {
         logWarning("Export: the project has no saved scenes yet");

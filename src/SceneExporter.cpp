@@ -569,7 +569,138 @@ static void {{pool}}_free({{Pool}} *pool) {
 }
 } // namespace
 
-bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display, std::string& error) {
+namespace {
+// The screen-scaling parts of scene_common for the exported scale modes only.
+struct ScalingCode {
+    std::string modeEnum;   // enum entries
+    std::string modeList;   // initialisers of scene_scale_modes[]
+    std::string source;     // scene_camera, scene_begin, scene_end (and Fit's helpers)
+    std::string uiCanvas;   // the start of scene_update_ui: where the canvas is
+};
+
+ScalingCode scalingCode(const ExportSettings& options) {
+    const bool expand = options.scaleModes[0];
+    const bool fit = options.scaleModes[1];
+    const bool fill = options.scaleModes[2];
+    ScalingCode code;
+    const char* const notes[] = {
+        "whole design area visible; extra screen space shows more scene",
+        "whole design area visible; extra space becomes black bars",
+        "window fully covered; the design area is cropped to fit",
+    };
+    const char* const names[] = {"SCENE_SCALE_EXPAND", "SCENE_SCALE_FIT", "SCENE_SCALE_FILL"};
+    for (int i = 0; i < 3; ++i) {
+        if (options.scaleModes[i]) {
+            code.modeEnum += std::string("    ") + names[i] + " = " + std::to_string(i) + ", /* " + notes[i] + " */\n";
+            code.modeList += std::string(code.modeList.empty() ? "" : ", ") + names[i];
+        }
+    }
+
+    std::string zoom;
+    if (fill && (expand || fit)) {
+        zoom = "    /* Expand and Fit fit the whole design area (smaller scale); Fill covers the window (larger scale). */\n"
+               "    if (mode == SCENE_SCALE_FILL) {\n"
+               "        camera.zoom = scale_x > scale_y ? scale_x : scale_y;\n"
+               "    } else {\n"
+               "        camera.zoom = scale_x < scale_y ? scale_x : scale_y;\n"
+               "    }\n";
+    } else if (fill) {
+        zoom = "    /* Fill covers the window (the larger scale). */\n"
+               "    camera.zoom = scale_x > scale_y ? scale_x : scale_y;\n"
+               "    (void)mode;\n";
+    } else {
+        zoom = std::string("    /* ") + (expand && fit ? "Expand and Fit fit" : expand ? "Expand fits" : "Fit fits") +
+               " the whole design area (the smaller scale). */\n"
+               "    camera.zoom = scale_x < scale_y ? scale_x : scale_y;\n"
+               "    (void)mode;\n";
+    }
+    code.source = "Camera2D scene_camera(SceneScaleMode mode) {\n"
+                  "    const float screen_w = (float)GetScreenWidth();\n"
+                  "    const float screen_h = (float)GetScreenHeight();\n"
+                  "    const float scale_x = screen_w / SCENE_DESIGN_WIDTH;\n"
+                  "    const float scale_y = screen_h / SCENE_DESIGN_HEIGHT;\n"
+                  "    Camera2D camera = {0};\n"
+                  "    camera.offset.x = screen_w * 0.5f;\n"
+                  "    camera.offset.y = screen_h * 0.5f;\n" +
+                  zoom +
+                  "    return camera;\n"
+                  "}\n\n";
+    if (fit) {
+        code.source = "/* Mode of the current scene_begin(), so scene_end() knows whether to draw Fit's bars. */\n"
+                      "static SceneScaleMode active_mode = SCENE_DEFAULT_SCALE_MODE;\n\n" +
+                      code.source +
+                      "/* The design area in window pixels, for Fit's clipping and bars. */\n"
+                      "static Rectangle design_rect_on_screen(Camera2D camera) {\n"
+                      "    const float w = SCENE_DESIGN_WIDTH * camera.zoom;\n"
+                      "    const float h = SCENE_DESIGN_HEIGHT * camera.zoom;\n"
+                      "    Rectangle r;\n"
+                      "    r.x = camera.offset.x - w * 0.5f;\n"
+                      "    r.y = camera.offset.y - h * 0.5f;\n"
+                      "    r.width = w;\n"
+                      "    r.height = h;\n"
+                      "    return r;\n"
+                      "}\n\n"
+                      "void scene_begin(SceneScaleMode mode) {\n"
+                      "    const Camera2D camera = scene_camera(mode);\n"
+                      "    active_mode = mode;\n"
+                      "    if (mode == SCENE_SCALE_FIT) {\n"
+                      "        const Rectangle r = design_rect_on_screen(camera);\n"
+                      "        BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);\n"
+                      "    }\n"
+                      "    BeginMode2D(camera);\n"
+                      "}\n\n"
+                      "void scene_end(void) {\n"
+                      "    EndMode2D();\n"
+                      "    if (active_mode == SCENE_SCALE_FIT) {\n"
+                      "        const Rectangle r = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));\n"
+                      "        const int screen_w = GetScreenWidth();\n"
+                      "        const int screen_h = GetScreenHeight();\n"
+                      "        EndScissorMode();\n"
+                      "        /* Black bars outside the design area. */\n"
+                      "        DrawRectangle(0, 0, screen_w, (int)r.y, BLACK);\n"
+                      "        DrawRectangle(0, (int)(r.y + r.height), screen_w, screen_h, BLACK);\n"
+                      "        DrawRectangle(0, 0, (int)r.x, screen_h, BLACK);\n"
+                      "        DrawRectangle((int)(r.x + r.width), 0, screen_w, screen_h, BLACK);\n"
+                      "    }\n"
+                      "}\n";
+    } else {
+        code.source += "void scene_begin(SceneScaleMode mode) {\n"
+                       "    BeginMode2D(scene_camera(mode));\n"
+                       "}\n\n"
+                       "void scene_end(void) {\n"
+                       "    EndMode2D();\n"
+                       "}\n";
+    }
+
+    const std::string window = "        scene->ui_canvas.x = 0.0f;\n"
+                               "        scene->ui_canvas.y = 0.0f;\n"
+                               "        scene->ui_canvas.width = (float)GetScreenWidth();\n"
+                               "        scene->ui_canvas.height = (float)GetScreenHeight();\n";
+    if (fit && (expand || fill)) {
+        code.uiCanvas = "    /* The Canvas: the window, or with Fit the design area inside the bars. One canvas unit\n"
+                        "       is ui_scale pixels: the design area just fits inside the canvas. */\n"
+                        "    if (mode == SCENE_SCALE_FIT) {\n"
+                        "        scene->ui_canvas = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));\n"
+                        "    } else {\n" +
+                        window + "    }\n";
+    } else if (fit) {
+        code.uiCanvas = "    /* The Canvas: the design area inside Fit's bars. One canvas unit is ui_scale pixels. */\n"
+                        "    scene->ui_canvas = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));\n"
+                        "    (void)mode;\n";
+    } else {
+        code.uiCanvas = "    /* The Canvas: the window. One canvas unit is ui_scale pixels: the design area just\n"
+                        "       fits inside the canvas. */\n"
+                        "    {\n" +
+                        window + "    }\n"
+                                 "    (void)mode;\n";
+    }
+    return code;
+}
+} // namespace
+
+bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display,
+                      const ExportSettings& options, std::string& error) {
+    const ScalingCode scaling = scalingCode(options);
     std::string poolHeaders;
     std::string poolSources;
     for (const ComponentPoolSpec& spec : kPools) {
@@ -581,6 +712,11 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
         {"width", floatLiteral(static_cast<float>(display.width))},
         {"height", floatLiteral(static_cast<float>(display.height))},
         {"mode", scaleModeConstant(display.scaleMode)},
+        {"mode_enum", scaling.modeEnum},
+        {"mode_count", std::to_string(options.modeCount())},
+        {"mode_list", scaling.modeList},
+        {"scaling_source", scaling.source},
+        {"ui_canvas", scaling.uiCanvas},
         {"pool_headers", poolHeaders},
         {"pool_sources", poolSources},
     };
@@ -607,12 +743,14 @@ extern "C" {
 #define SCENE_DESIGN_WIDTH {{width}}
 #define SCENE_DESIGN_HEIGHT {{height}}
 
-/* How the design area is fitted to a window of another size or shape. */
+/* How the design area is fitted to a window of another size or shape. Only the modes
+   chosen in Project Settings > Export are exported (and only their code). */
 typedef enum SceneScaleMode {
-    SCENE_SCALE_EXPAND, /* whole design area visible; extra screen space shows more scene */
-    SCENE_SCALE_FIT,    /* whole design area visible; extra space becomes black bars */
-    SCENE_SCALE_FILL    /* window fully covered; the design area is cropped to fit */
-} SceneScaleMode;
+{{mode_enum}}} SceneScaleMode;
+
+/* The exported scale modes, e.g. for an options menu. */
+#define SCENE_SCALE_MODE_COUNT {{mode_count}}
+extern const SceneScaleMode scene_scale_modes[SCENE_SCALE_MODE_COUNT];
 
 /* The scale mode chosen in Project Settings, as a suggested default. The mode itself is
    picked at runtime: pass this or any other SceneScaleMode to scene_begin(). */
@@ -948,63 +1086,9 @@ void scene_unload(SceneData *scene);
 
 /* ----- Screen scaling ----- */
 
-/* Mode of the current scene_begin(), so scene_end() knows whether to draw Fit's bars. */
-static SceneScaleMode active_mode = SCENE_SCALE_EXPAND;
+const SceneScaleMode scene_scale_modes[SCENE_SCALE_MODE_COUNT] = {{{mode_list}}};
 
-Camera2D scene_camera(SceneScaleMode mode) {
-    const float screen_w = (float)GetScreenWidth();
-    const float screen_h = (float)GetScreenHeight();
-    const float scale_x = screen_w / SCENE_DESIGN_WIDTH;
-    const float scale_y = screen_h / SCENE_DESIGN_HEIGHT;
-    Camera2D camera = {0};
-    camera.offset.x = screen_w * 0.5f;
-    camera.offset.y = screen_h * 0.5f;
-    /* Expand and Fit fit the whole design area (smaller scale); Fill covers the window (larger scale). */
-    if (mode == SCENE_SCALE_FILL) {
-        camera.zoom = scale_x > scale_y ? scale_x : scale_y;
-    } else {
-        camera.zoom = scale_x < scale_y ? scale_x : scale_y;
-    }
-    return camera;
-}
-
-/* The design area in window pixels, for Fit's clipping and bars. */
-static Rectangle design_rect_on_screen(Camera2D camera) {
-    const float w = SCENE_DESIGN_WIDTH * camera.zoom;
-    const float h = SCENE_DESIGN_HEIGHT * camera.zoom;
-    Rectangle r;
-    r.x = camera.offset.x - w * 0.5f;
-    r.y = camera.offset.y - h * 0.5f;
-    r.width = w;
-    r.height = h;
-    return r;
-}
-
-void scene_begin(SceneScaleMode mode) {
-    const Camera2D camera = scene_camera(mode);
-    active_mode = mode;
-    if (mode == SCENE_SCALE_FIT) {
-        const Rectangle r = design_rect_on_screen(camera);
-        BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
-    }
-    BeginMode2D(camera);
-}
-
-void scene_end(void) {
-    EndMode2D();
-    if (active_mode == SCENE_SCALE_FIT) {
-        const Rectangle r = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));
-        const int screen_w = GetScreenWidth();
-        const int screen_h = GetScreenHeight();
-        EndScissorMode();
-        /* Black bars outside the design area. */
-        DrawRectangle(0, 0, screen_w, (int)r.y, BLACK);
-        DrawRectangle(0, (int)(r.y + r.height), screen_w, screen_h, BLACK);
-        DrawRectangle(0, 0, (int)r.x, screen_h, BLACK);
-        DrawRectangle((int)(r.x + r.width), 0, screen_w, screen_h, BLACK);
-    }
-}
-
+{{scaling_source}}
 /* ----- Memory ----- */
 
 /* The region every scene allocates from unless it has its own (SceneData.memory). */
@@ -1587,17 +1671,7 @@ void scene_draw_colliders(SceneData *scene, Color color) {
 void scene_update_ui(SceneData *scene, SceneScaleMode mode) {
     int chain[SCENE_MAX_DEPTH];
     int i;
-    /* The Canvas: the window, or with Fit the design area inside the bars. One canvas unit
-       is ui_scale pixels: the design area just fits inside the canvas. */
-    if (mode == SCENE_SCALE_FIT) {
-        scene->ui_canvas = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));
-    } else {
-        scene->ui_canvas.x = 0.0f;
-        scene->ui_canvas.y = 0.0f;
-        scene->ui_canvas.width = (float)GetScreenWidth();
-        scene->ui_canvas.height = (float)GetScreenHeight();
-    }
-    {
+{{ui_canvas}}    {
         const float scale_x = scene->ui_canvas.width / SCENE_DESIGN_WIDTH;
         const float scale_y = scene->ui_canvas.height / SCENE_DESIGN_HEIGHT;
         scene->ui_scale = scale_x < scale_y ? scale_x : scale_y;
@@ -1763,7 +1837,7 @@ bool writeProjectMain(const std::string& projectName, const std::vector<std::str
 // Starts in borderless fullscreen (a borderless window covering the monitor, so Alt+Tab
 // works normally). F11 or Alt+Enter toggles windowed mode.
 // Controls: Left / Right    switch scenes (done by the scenes themselves, see example_scene_logic)
-//           M               cycle the scale mode
+//           M               cycle through the exported scale modes
 //           click           add an entity at the mouse (not on the UI: the element under
 //                           the mouse is shown instead)
 //           Delete          remove the last entity added
@@ -1792,7 +1866,18 @@ bool writeProjectMain(const std::string& projectName, const std::vector<std::str
 #include "easy_memory.h"
 #endif
 
-static const char *const scale_mode_names[] = {"Expand", "Fit", "Fill"};
+static const char *const scale_mode_names[] = {"Expand", "Fit", "Fill"}; /* by SceneScaleMode value */
+
+/* The next of the exported scale modes (scene_scale_modes), for the M key. */
+static SceneScaleMode next_scale_mode(SceneScaleMode mode) {
+    int i;
+    for (i = 0; i < SCENE_SCALE_MODE_COUNT; ++i) {
+        if (scene_scale_modes[i] == mode) {
+            return scene_scale_modes[(i + 1) % SCENE_SCALE_MODE_COUNT];
+        }
+    }
+    return scene_scale_modes[0];
+}
 
 /* Scene logic, run by each scene's draw (it's set as every scene's on_draw hook below).
    `*current` is this scene's SceneId; setting it to another one switches scenes. Here
@@ -1973,7 +2058,7 @@ static int test_scene_api(SceneManager *manager, int id) {
         scene_set_ui_rectangle(scene, inner, RED);
         scene_set_ui_label(scene, label, "Hi", 20.0f, 2.0f, SCENE_ALIGN_CENTER, SCENE_ALIGN_CENTER, WHITE);
         BeginDrawing();
-        scene_draw_ui(scene, SCENE_SCALE_EXPAND); /* lays out, and draws the label */
+        scene_draw_ui(scene, SCENE_DEFAULT_SCALE_MODE); /* lays out, and draws the label */
         EndDrawing();
         {
             const SceneUIText t = scene_ui_text(scene, label, 20.0f, 2.0f);
@@ -2019,7 +2104,7 @@ static int test_scene_api(SceneManager *manager, int id) {
         failures += check(scene_set_ui_rectangle(scene, spawned, RED) == NULL, "UI components only on UI elements", name);
 
         scene_remove_entity(scene, corner);
-        scene_update_ui(scene, SCENE_SCALE_EXPAND);
+        scene_update_ui(scene, SCENE_DEFAULT_SCALE_MODE);
         r = scene_ui_rect(scene, inner);
         failures += check(scene_entity(scene, inner)->parent == SCENE_CANVAS && pixel_near(r.x, before_remove.x) &&
                               pixel_near(r.y, before_remove.y) && pixel_near(r.width, before_remove.width),
@@ -2197,7 +2282,7 @@ int main(int argc, char **argv) {
         if (frames_left > 0) {
             /* Smoke test: 10 frames per scene, then the next scale mode. */
             manager.current = (frame / 10) % SCENE_ID_COUNT;
-            mode = (SceneScaleMode)((frame / (10 * SCENE_ID_COUNT)) % 3);
+            mode = scene_scale_modes[(frame / (10 * SCENE_ID_COUNT)) % SCENE_SCALE_MODE_COUNT];
             --frames_left;
             ++frame;
         } else
@@ -2208,7 +2293,7 @@ int main(int argc, char **argv) {
                 fullscreen = !fullscreen;
                 set_fullscreen(fullscreen);
             }
-            if (IsKeyPressed(KEY_M)) mode = (SceneScaleMode)((mode + 1) % 3);
+            if (IsKeyPressed(KEY_M)) mode = next_scale_mode(mode);
             if (IsKeyPressed(KEY_C)) show_colliders = !show_colliders;
             scene = scene_manager_current(&manager);
 
@@ -2275,7 +2360,8 @@ int main(int argc, char **argv) {
             printf("smoke test FAILED: %d check(s)\n", failures);
             return 1;
         }
-        printf("smoke test passed: scene API checks on %d scene(s), %d frames in 3 scale modes\n", SCENE_ID_COUNT, frame);
+        printf("smoke test passed: scene API checks on %d scene(s), %d frames in %d scale mode(s)\n", SCENE_ID_COUNT,
+               frame, SCENE_SCALE_MODE_COUNT);
     }
 #endif
     return 0;
@@ -2320,33 +2406,12 @@ bool writeEasyMemory(const std::filesystem::path& outDir, const std::filesystem:
     return writeFile(dir / "easy_memory.c", c, error);
 }
 
-namespace {
-// True if `path` exists but no longer starts with the generated-file marker (`marker`, e.g.
-// "// Generated by Scene Editor"): the user took the file over, so exports leave it alone.
-bool takenOver(const std::filesystem::path& path, const std::string& marker) {
-    std::error_code ec;
-    if (!std::filesystem::exists(path, ec)) {
-        return false;
-    }
-    std::string firstLine;
-    std::ifstream file(path, std::ios::binary);
-    std::getline(file, firstLine);
-    skipByteOrderMark(firstLine);
-    return firstLine.rfind(marker, 0) != 0;
-}
-} // namespace
-
-bool writeGitignore(const std::filesystem::path& outDir, const std::string& projectName,
-                    std::vector<std::string>& kept, std::string& error) {
+bool writeGitignore(const std::filesystem::path& outDir, const std::string& projectName, std::string& error) {
     const std::filesystem::path path = outDir / ".gitignore";
     const std::string marker = "# " + std::string(kGeneratedMarker).substr(3); // "# Generated by Scene Editor"
-    if (takenOver(path, marker)) {
-        kept.push_back(".gitignore");
-        return true;
-    }
     const std::string text = marker + " for project \"" + projectName +
-                             "\". Re-exporting replaces this file while\n"
-                             "# this line is here; delete it to keep your own changes.\n"
+                             "\". To keep your own changes, set .gitignore\n"
+                             "# to \"Only if missing\" in Project Settings > Export.\n"
                              "#\n"
                              "# Everything else here is source: the generated scenes and utils are needed to build\n"
                              "# the game without the editor, so they stay tracked.\n"
@@ -2356,16 +2421,9 @@ bool writeGitignore(const std::filesystem::path& outDir, const std::string& proj
     return writeFile(path, text, error);
 }
 
-bool writeVSCodeFiles(const std::filesystem::path& outDir, const std::string& projectName,
-                      std::vector<std::string>& kept, std::string& error) {
+bool writeVSCodeFiles(const std::filesystem::path& outDir, const std::string& projectName, std::string& error) {
     using json = nlohmann::ordered_json;
     const std::filesystem::path path = outDir / ".vscode" / "c_cpp_properties.json";
-
-    // A file the user took over (marker line removed) stays as it is.
-    if (takenOver(path, kGeneratedMarker)) {
-        kept.push_back(".vscode/c_cpp_properties.json");
-        return true;
-    }
 
     // Only paths inside the project, so the file works on any machine. raylib.h is found
     // through the same environment variables the Makefile reads (set either one); the C/C++
@@ -2388,13 +2446,13 @@ bool writeVSCodeFiles(const std::filesystem::path& outDir, const std::string& pr
                              projectName +
                              "\".\n"
                              "// raylib.h comes from the RAYLIB_INCLUDE or RAYLIB_SRC environment variable (the folder\n"
-                             "// containing raylib.h), the same variables the Makefile uses. Re-exporting replaces this\n"
-                             "// file while the first line is here; delete that line to keep your own changes.\n" +
+                             "// containing raylib.h), the same variables the Makefile uses. To keep your own changes,\n"
+                             "// set .vscode settings to \"Only if missing\" in Project Settings > Export.\n" +
                              properties.dump(4) + "\n";
     return writeFile(path, text, error);
 }
 
-int removeGeneratedFiles(const std::filesystem::path& outDir) {
+int removeGeneratedFiles(const std::filesystem::path& outDir, const std::vector<std::filesystem::path>& keep) {
     int removed = 0;
     std::error_code ec;
     std::vector<std::filesystem::path> generated;
@@ -2413,7 +2471,8 @@ int removeGeneratedFiles(const std::filesystem::path& outDir) {
             }
             // "// Generated by Scene Editor..." in C files, "# Generated by Scene Editor..." in the Makefile.
             const std::string text = std::string(kGeneratedMarker).substr(3); // "Generated by Scene Editor"
-            if (firstLine.rfind("// " + text, 0) == 0 || firstLine.rfind("# " + text, 0) == 0) {
+            const bool kept = std::find(keep.begin(), keep.end(), entry.path()) != keep.end();
+            if (!kept && (firstLine.rfind("// " + text, 0) == 0 || firstLine.rfind("# " + text, 0) == 0)) {
                 generated.push_back(entry.path());
             }
         }
@@ -2426,11 +2485,12 @@ int removeGeneratedFiles(const std::filesystem::path& outDir) {
     return removed;
 }
 
-bool writeMakefile(const std::string& projectName, const std::vector<std::string>& sceneNames,
+bool writeMakefile(const std::string& projectName, const std::vector<std::string>& sceneNames, int scaleModeCount,
                    const std::filesystem::path& outDir, std::string& error) {
     // Sources are found by the Makefile itself (every .c in src/, generated/ and utils/).
     // Enough smoke-test frames to draw every scene in every scale mode (10 frames each).
-    const std::string frames = std::to_string(std::max<std::size_t>(30 * sceneNames.size(), 60));
+    const std::string frames =
+        std::to_string(std::max<std::size_t>(10 * sceneNames.size() * static_cast<std::size_t>(scaleModeCount), 60));
 
     // Recipe lines must start with a tab.
     const std::string makefile = fill(R"MAKE(# Generated by Scene Editor for project "{{project}}". Do not edit:
@@ -2453,7 +2513,7 @@ bool writeMakefile(const std::string& projectName, const std::vector<std::string
 #                 controls are listed in src/project_main.c); ARGS=--windowed starts windowed
 #   make test     strict test build (bin/{{target}}_test, compiled with -DSCENE_TESTS,
 #                 warnings are errors), then a smoke run that checks the runtime scene API
-#                 and draws every scene in every scale mode
+#                 and draws every scene in every exported scale mode
 #   make clean    delete bin/
 #
 # raylib: an installed raylib is used by default (-lraylib). Otherwise, either

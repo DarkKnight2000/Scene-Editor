@@ -15,6 +15,26 @@ other sizes and shapes, and the **scale mode** decides how the design area fits 
   default.
 - **Choosing a mode:** you choose the mode at runtime, every frame if you like, e.g. from
   an options menu.
+- **Which modes exist:** only the modes ticked under *Exported modes* in Project Settings
+  are exported. `SceneScaleMode` has only those, with fixed values (Expand 0, Fit 1,
+  Fill 2), and `scene_scale_modes[0 .. SCENE_SCALE_MODE_COUNT-1]` lists them:
+
+```c
+/* An options menu entry: step through the modes this export has. */
+static SceneScaleMode next_mode(SceneScaleMode mode) {
+    int i;
+    for (i = 0; i < SCENE_SCALE_MODE_COUNT; ++i) {
+        if (scene_scale_modes[i] == mode) {
+            return scene_scale_modes[(i + 1) % SCENE_SCALE_MODE_COUNT];
+        }
+    }
+    return SCENE_DEFAULT_SCALE_MODE;
+}
+```
+
+Code that names a mode that wasn't exported, such as `SCENE_SCALE_FILL` in an
+Expand-only export, doesn't compile. To write code that works with any export, use
+`SCENE_DEFAULT_SCALE_MODE` and `scene_scale_modes`.
 
 ## Drawing with a mode
 

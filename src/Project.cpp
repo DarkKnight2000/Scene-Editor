@@ -66,6 +66,35 @@ bool writeJson(const std::filesystem::path& path, const json& j, std::string& er
     return true;
 }
 
+constexpr const char* kPolicyKeys[] = {"always", "ifMissing", "never"};
+
+const char* policyKey(ExportPolicy policy) {
+    return kPolicyKeys[static_cast<int>(policy)];
+}
+
+void readPolicy(const json& j, const char* key, ExportPolicy& out) {
+    const std::string value = j.value(key, std::string());
+    for (int i = 0; i < 3; ++i) {
+        if (value == kPolicyKeys[i]) {
+            out = static_cast<ExportPolicy>(i);
+        }
+    }
+}
+
+json exportJson(const ExportSettings& e) {
+    json modes = json::array();
+    for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
+        if (e.scaleModes[i]) {
+            modes.push_back(scaleModeName(kScaleModes[i]));
+        }
+    }
+    return {{"scaleModes", std::move(modes)},
+            {"makefile", policyKey(e.makefile)},
+            {"projectMain", policyKey(e.projectMain)},
+            {"vscodeSettings", policyKey(e.vscodeSettings)},
+            {"gitignore", policyKey(e.gitignore)}};
+}
+
 json projectJson(const Project& project) {
     return {{"format", kFormat},
             {"version", kVersion},
@@ -75,13 +104,35 @@ json projectJson(const Project& project) {
              {{"width", project.display.width},
               {"height", project.display.height},
               {"scaleMode", scaleModeName(project.display.scaleMode)}}},
-            {"easyMemoryDir", project.easyMemoryDir}};
+            {"easyMemoryDir", project.easyMemoryDir},
+            {"export", exportJson(project.exportSettings)}};
 }
 
 std::filesystem::path sessionPath(const Project& project) {
     return project.root() / ".sceneeditor" / "session.json";
 }
 } // namespace
+
+const char* exportPolicyLabel(ExportPolicy policy) {
+    switch (policy) {
+    case ExportPolicy::IfMissing: return "Only if missing";
+    case ExportPolicy::Never: return "Never";
+    case ExportPolicy::Always: break;
+    }
+    return "Always";
+}
+
+void ExportSettings::includeMode(ScaleMode defaultMode) {
+    for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
+        if (kScaleModes[i] == defaultMode) {
+            scaleModes[i] = true;
+        }
+    }
+}
+
+int ExportSettings::modeCount() const {
+    return static_cast<int>(std::count(std::begin(scaleModes), std::end(scaleModes), true));
+}
 
 std::string Project::defaultEasyMemoryDir() {
     return SCENE_EDITOR_EASY_MEMORY_DIR;
@@ -165,6 +216,19 @@ bool loadProject(const std::filesystem::path& path, Project& project, std::strin
     if (const auto dir = j.find("easyMemoryDir"); dir != j.end() && dir->is_string() && !dir->get<std::string>().empty()) {
         loaded.easyMemoryDir = dir->get<std::string>();
     }
+    if (const auto e = j.find("export"); e != j.end() && e->is_object()) {
+        ExportSettings& settings = loaded.exportSettings;
+        if (const auto modes = e->find("scaleModes"); modes != e->end() && modes->is_array()) {
+            for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
+                settings.scaleModes[i] = std::find(modes->begin(), modes->end(), scaleModeName(kScaleModes[i])) != modes->end();
+            }
+        }
+        readPolicy(*e, "makefile", settings.makefile);
+        readPolicy(*e, "projectMain", settings.projectMain);
+        readPolicy(*e, "vscodeSettings", settings.vscodeSettings);
+        readPolicy(*e, "gitignore", settings.gitignore);
+    }
+    loaded.exportSettings.includeMode(loaded.display.scaleMode);
     std::filesystem::create_directories(loaded.scenesDir(), ec);
     project = std::move(loaded);
     return true;

@@ -136,6 +136,7 @@ private:
     float m_settingsHeight = 0.0f;
     int m_settingsMode = 0;
     std::string m_settingsEasyMemory;
+    ExportSettings m_settingsExport;
 
     // Quit dialog: unsaved scenes and whether to save each one.
     struct QuitItem {

@@ -13,6 +13,7 @@ when the id isn't a live entity of the right kind.
 |---|---|
 | `SCENE_DESIGN_WIDTH`, `SCENE_DESIGN_HEIGHT` | the design resolution (float), fixed at export |
 | `SCENE_DEFAULT_SCALE_MODE` | the scale mode chosen in Project Settings |
+| `SCENE_SCALE_MODE_COUNT` | how many scale modes this export has (Project Settings > Export) |
 | `SCENE_WORLD` (-1) | parent id: the World root |
 | `SCENE_CANVAS` (-2) | parent id: the Canvas, the root of the UI |
 | `SCENE_NAME_MAX` (64) | entity name buffer size |
@@ -35,7 +36,7 @@ when the id isn't a live entity of the right kind.
 | `SceneUILabel` | `text`, `font_size`, `spacing`, `align_h`, `align_v`, `color`, `font` |
 | `SceneTextAlign` | `SCENE_ALIGN_START` (left/top), `SCENE_ALIGN_CENTER`, `SCENE_ALIGN_END` (right/bottom) |
 | `SceneUIText` | `rect` (pixels), `font_size`, `spacing` (pixels) |
-| `SceneScaleMode` | `SCENE_SCALE_EXPAND`, `SCENE_SCALE_FIT`, `SCENE_SCALE_FILL` |
+| `SceneScaleMode` | `SCENE_SCALE_EXPAND` (0), `SCENE_SCALE_FIT` (1), `SCENE_SCALE_FILL` (2): only the exported ones |
 | `SceneDrawHook` | `void (*)(SceneData *scene, int *current)` |
 | `SceneDrawUIHook` | `void (*)(SceneData *scene)` |
 | `SceneManager` | `scenes[SCENE_ID_COUNT]`, `current`, `drawn` |
@@ -76,6 +77,7 @@ when the id isn't a live entity of the right kind.
 
 | Function | |
 |---|---|
+| `extern const SceneScaleMode scene_scale_modes[SCENE_SCALE_MODE_COUNT]` | the exported scale modes |
 | `Camera2D scene_camera(SceneScaleMode mode)` | the camera for the current window: scene origin at the centre |
 | `void scene_begin(SceneScaleMode mode)` | starts drawing the scene (after `BeginDrawing`) |
 | `void scene_end(void)` | ends it; with Fit, draws the bars |

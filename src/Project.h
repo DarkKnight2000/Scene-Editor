@@ -21,6 +21,28 @@ struct DisplaySettings {
     ScaleMode scaleMode = ScaleMode::Expand;
 };
 
+// When Export writes a file you may want to edit by hand:
+//   Always     on every export (your changes are replaced)
+//   IfMissing  only when it doesn't exist yet, so your version is kept
+//   Never      not at all (an existing one is left alone)
+enum class ExportPolicy { Always, IfMissing, Never };
+inline constexpr ExportPolicy kExportPolicies[] = {ExportPolicy::Always, ExportPolicy::IfMissing, ExportPolicy::Never};
+const char* exportPolicyLabel(ExportPolicy policy); // "Always", "Only if missing", "Never"
+
+struct ExportSettings {
+    // Scale modes the exported runtime supports, indexed like kScaleModes. Only their code is
+    // exported. The project's default scale mode is always included.
+    bool scaleModes[3] = {true, true, true};
+    ExportPolicy makefile = ExportPolicy::Always;
+    ExportPolicy projectMain = ExportPolicy::Always;    // src/project_main.c
+    ExportPolicy vscodeSettings = ExportPolicy::Always; // .vscode/c_cpp_properties.json
+    ExportPolicy gitignore = ExportPolicy::Always;
+
+    // Makes sure `defaultMode` is one of the exported modes.
+    void includeMode(ScaleMode defaultMode);
+    int modeCount() const;
+};
+
 // A project is a folder holding a project file and the project's scenes:
 //
 //   MyGame/
@@ -37,6 +59,7 @@ struct Project {
     // start at the project folder. Defaults to the editor's external/easy_memory; change it
     // in Project Settings if the editor's source tree moves.
     std::string easyMemoryDir = defaultEasyMemoryDir();
+    ExportSettings exportSettings;
 
     std::filesystem::path root() const { return file.parent_path(); }
     std::filesystem::path scenesDir() const { return root() / scenesFolder; }
