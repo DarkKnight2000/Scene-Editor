@@ -92,7 +92,7 @@
             255
           ],
           "shape": "circle",
-          "export": false
+          "export": true
         }
       }
     },
