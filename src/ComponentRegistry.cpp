@@ -100,7 +100,10 @@ void fromJson(const json& j, TransformComponent& t) {
 constexpr const char* kShapeNames[] = {"rectangle", "circle", "triangle"};
 
 json toJson(const SpriteComponent& s) {
-    return {{"size", toJson(s.size)}, {"tint", toJson(s.tint)}, {"shape", kShapeNames[static_cast<int>(s.shape)]}};
+    return {{"size", toJson(s.size)},
+            {"tint", toJson(s.tint)},
+            {"shape", kShapeNames[static_cast<int>(s.shape)]},
+            {"export", s.exported}};
 }
 
 void fromJson(const json& j, SpriteComponent& s) {
@@ -113,6 +116,7 @@ void fromJson(const json& j, SpriteComponent& s) {
             s.shape = static_cast<SpriteShape>(i);
         }
     }
+    read(j, "export", s.exported); // missing in older files: exported
 }
 
 json toJson(const BoxColliderComponent& c) {
@@ -286,6 +290,10 @@ void drawSprite(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     }
     vec2Row(grid, "Size", s.size, 0.5f);
     colorRow(grid, "Tint", s.tint);
+    const Rectangle exportRow = grid.row("Export");
+    ui::checkbox({exportRow.x, exportRow.y + (exportRow.height - 20.0f) / 2.0f, 20.0f, 20.0f}, &s.exported);
+    ui::label({exportRow.x + 28.0f, exportRow.y, exportRow.width - 28.0f, exportRow.height},
+              s.exported ? "to the C code" : "designer only", ui::styleColor(TEXT_COLOR_DISABLED));
 }
 
 void drawBoxCollider(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {

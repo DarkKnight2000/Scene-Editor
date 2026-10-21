@@ -247,7 +247,9 @@ void {{prefix}}_draw(SceneData *scene, int *current);
         if (!t.inheritScale) {
             body << "    scene_entity(scene, " << ref << ")->transform.inherit_scale = false;\n";
         }
-        if (const auto* sprite = registry.try_get<SpriteComponent>(e)) {
+        if (const auto* sprite = registry.try_get<SpriteComponent>(e); sprite != nullptr && !sprite->exported) {
+            body << "    /* its sprite is designer only (not exported) */\n";
+        } else if (sprite != nullptr) {
             body << "    scene_set_sprite(scene, " << ref << ", " << vector2(sprite->size) << ", " << color(sprite->tint)
                  << ");\n";
             if (sprite->shape != SpriteShape::Rectangle) {

@@ -47,6 +47,9 @@ struct SpriteComponent {
     Vector2 size{64.0f, 64.0f};
     Color tint = WHITE;
     SpriteShape shape = SpriteShape::Rectangle;
+    // false: designer only. Shown in the editor but left out of the exported C (the entity
+    // and its other components are still exported).
+    bool exported = true;
 };
 
 // A box for collisions. With physics on (Project Settings), it is the entity's Box2D shape:

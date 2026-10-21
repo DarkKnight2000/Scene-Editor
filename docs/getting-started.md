@@ -21,6 +21,9 @@ export/
 - **Your choice:** the `Makefile`, `src/project_main.c`, the `.vscode` settings and the
   `.gitignore` follow the [export options](#export-options).
 - **Kept:** files you add, in `src/` or anywhere else.
+- **Designer-only sprites:** a sprite with **Export** unticked (in its Sprite section) is
+  shown in the editor but left out of the C code, for guides and placeholders. Its entity
+  and other components are still exported.
 - **Include paths:** `src/`, `generated/` and `utils/` are all include directories, so
   any header can be included by its name alone: `#include "scenes.h"` gives you
   everything.
