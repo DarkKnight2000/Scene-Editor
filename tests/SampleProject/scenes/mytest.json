@@ -1,0 +1,178 @@
+{
+  "format": "SceneEditor.scene",
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "World",
+      "world": true,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "name": "Entity 5",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "Entity 6",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Entity 1",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            64.0,
+            64.0
+          ],
+          "tint": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Entity 2",
+      "origin": 3,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "Entity 3",
+      "origin": 4,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "Entity 4",
+      "origin": 3,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "Entity 7",
+      "origin": 2,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,392 @@
+{
+  "format": "SceneEditor.scene",
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "World",
+      "world": true,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
+      "name": "Sky Glow",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            -120.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            640.0,
+            160.0
+          ],
+          "tint": [
+            70,
+            90,
+            140,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Sun",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            210.0,
+            -150.0
+          ],
+          "rotation": 45.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            70.0,
+            70.0
+          ],
+          "tint": [
+            250,
+            210,
+            60,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Sun Core",
+      "origin": 3,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            44.0,
+            44.0
+          ],
+          "tint": [
+            255,
+            240,
+            150,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "Ground",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            160.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            640.0,
+            60.0
+          ],
+          "tint": [
+            76,
+            153,
+            76,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "House",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            -160.0,
+            90.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            120.0,
+            100.0
+          ],
+          "tint": [
+            200,
+            160,
+            110,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "Roof",
+      "origin": 6,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            -62.0
+          ],
+          "rotation": 45.0,
+          "scale": [
+            0.75,
+            0.75
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            118.0,
+            118.0
+          ],
+          "tint": [
+            160,
+            60,
+            50,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "Door",
+      "origin": 6,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            25.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            26.0,
+            50.0
+          ],
+          "tint": [
+            110,
+            70,
+            40,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "Tree",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            140.0,
+            100.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            20.0,
+            60.0
+          ],
+          "tint": [
+            110,
+            75,
+            40,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "Leaves",
+      "origin": 9,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            -55.0
+          ],
+          "rotation": 15.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            80.0,
+            80.0
+          ],
+          "tint": [
+            40,
+            120,
+            60,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "Player",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            -20.0,
+            110.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            28.0,
+            40.0
+          ],
+          "tint": [
+            60,
+            110,
+            220,
+            255
+          ]
+        },
+        "boxCollider": {
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            28.0,
+            40.0
+          ],
+          "isTrigger": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "UI Element 1",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            -0.3100000321865082
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            -67.0,
+            88.0
+          ]
+        }
+      }
+    }
+  ]
+}

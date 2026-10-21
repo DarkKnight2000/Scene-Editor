@@ -1,0 +1,11 @@
+{
+  "format": "SceneEditor.project",
+  "version": 1,
+  "name": "SampleProject",
+  "scenesFolder": "scenes",
+  "display": {
+    "width": 1280,
+    "height": 720,
+    "scaleMode": "Expand"
+  }
+}

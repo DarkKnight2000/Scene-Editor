@@ -1,0 +1,84 @@
+{
+  "format": "SceneEditor.scene",
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "World",
+      "world": true,
+      "components": {
+        "transform": {
+          "position": [
+            -150.0,
+            0.0
+          ],
+          "rotation": 30.0,
+          "scale": [
+            1.5,
+            1.5
+          ]
+        }
+      }
+    },
+    {
+      "id": 1,
+      "name": "Entity 1",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            100.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ]
+        },
+        "sprite": {
+          "size": [
+            64.0,
+            64.0
+          ],
+          "tint": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "Entity 2",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            80.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ]
+        },
+        "sprite": {
+          "size": [
+            64.0,
+            64.0
+          ],
+          "tint": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,333 @@
+{
+  "format": "SceneEditor.scene",
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "World",
+      "world": true,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
+      "name": "Ground",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            300.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            1920.0,
+            200.0
+          ],
+          "tint": [
+            70,
+            150,
+            80,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Health Bar",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.0,
+            0.0
+          ],
+          "position": [
+            24.0,
+            24.0
+          ],
+          "size": [
+            360.0,
+            36.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            40,
+            20,
+            20,
+            230
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Health Fill",
+      "origin": 3,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            0.699999988079071,
+            1.0
+          ],
+          "pivot": [
+            0.0,
+            0.5
+          ],
+          "position": [
+            4.0,
+            0.0
+          ],
+          "size": [
+            -4.0,
+            -8.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            48,
+            213,
+            66,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "Minimap",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            1.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            1.0,
+            0.0
+          ],
+          "position": [
+            -24.0,
+            24.0
+          ],
+          "size": [
+            240.0,
+            240.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            30,
+            40,
+            70,
+            220
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "Bottom Bar",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            1.0
+          ],
+          "anchorMax": [
+            1.0,
+            1.0
+          ],
+          "pivot": [
+            0.5,
+            1.0
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            0.0,
+            80.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            205,
+            203,
+            21,
+            230
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "Pause Panel",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.5,
+            0.5
+          ],
+          "anchorMax": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            400.0,
+            240.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            240,
+            200,
+            80,
+            120
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "Score",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.5,
+            0
+          ],
+          "anchorMax": [
+            0.5,
+            0
+          ],
+          "pivot": [
+            0.5,
+            0
+          ],
+          "position": [
+            0,
+            24
+          ],
+          "size": [
+            360,
+            48
+          ]
+        },
+        "uiLabel": {
+          "text": "Score 0",
+          "fontSize": 40,
+          "spacing": 4,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "Pause Title",
+      "origin": 7,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            1,
+            0
+          ],
+          "pivot": [
+            0.5,
+            0
+          ],
+          "position": [
+            0,
+            16
+          ],
+          "size": [
+            -32,
+            60
+          ]
+        },
+        "uiLabel": {
+          "text": "PAUSED",
+          "fontSize": 48,
+          "spacing": 4,
+          "color": [
+            40,
+            30,
+            10,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    }
+  ]
+}
