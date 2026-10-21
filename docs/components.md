@@ -5,7 +5,8 @@ Components are optional data attached to an entity. Scene entities can have:
 | Component | Type | Fields |
 |---|---|---|
 | Sprite | `SceneSprite` | `size` (before scaling), `tint`, `shape`. A filled shape centred on the entity. |
-| Box collider | `SceneBoxCollider` | `offset` (from the entity's position, before scaling), `size`, `is_trigger` |
+| Box collider | `SceneBoxCollider` | `offset` (from the entity's position, before scaling), `size`, `is_trigger`, and the physics material `density`, `friction`, `restitution` |
+| Rigidbody | `SceneRigidbody` | only with physics: see [Physics](physics.md) |
 
 UI elements have their own components; see [UI](ui.md).
 

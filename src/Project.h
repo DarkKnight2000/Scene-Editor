@@ -29,6 +29,15 @@ enum class ExportPolicy { Always, IfMissing, Never };
 inline constexpr ExportPolicy kExportPolicies[] = {ExportPolicy::Always, ExportPolicy::IfMissing, ExportPolicy::Never};
 const char* exportPolicyLabel(ExportPolicy policy); // "Always", "Only if missing", "Never"
 
+// Box2D physics in the exported game. Box2D works in metres; pixelsPerMeter converts scene
+// units. Gravity is in metres per second squared, y down.
+struct PhysicsSettings {
+    bool enabled = true; // export Box2D and the scenes' rigidbodies
+    float pixelsPerMeter = 64.0f;
+    float gravityX = 0.0f;
+    float gravityY = 9.8f;
+};
+
 struct ExportSettings {
     // Scale modes the exported runtime supports, indexed like kScaleModes. Only their code is
     // exported. The project's default scale mode is always included.
@@ -60,12 +69,18 @@ struct Project {
     // in Project Settings if the editor's source tree moves.
     std::string easyMemoryDir = defaultEasyMemoryDir();
     ExportSettings exportSettings;
+    PhysicsSettings physics;
+    // Box2D's folder (with include/ and src/), copied into exports when physics is on.
+    // Relative paths start at the project folder. Defaults to the editor's external/box2d.
+    std::string box2dDir = defaultBox2dDir();
 
     std::filesystem::path root() const { return file.parent_path(); }
     std::filesystem::path scenesDir() const { return root() / scenesFolder; }
     std::filesystem::path easyMemoryPath() const;
+    std::filesystem::path box2dPath() const;
 
     static std::string defaultEasyMemoryDir();
+    static std::string defaultBox2dDir();
 };
 
 inline constexpr const char* kProjectExtension = ".sceneproj";

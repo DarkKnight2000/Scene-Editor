@@ -18,7 +18,11 @@ when the id isn't a live entity of the right kind.
 | `SCENE_CANVAS` (-2) | parent id: the Canvas, the root of the UI |
 | `SCENE_NAME_MAX` (64) | entity name buffer size |
 | `SCENE_TEXT_MAX` (128) | label text buffer size |
-| `SCENE_MEMORY_SIZE` | bytes in the shared memory region (default 8 MiB; define it to change it) |
+| `SCENE_MEMORY_SIZE` | bytes in the shared memory region (default 8 MiB, 32 MiB with physics; define it to change it) |
+| `SCENE_PHYSICS` | 1 when the export has physics (Project Settings > Physics) |
+| `SCENE_PIXELS_PER_METER` | scene units in a metre (physics only) |
+| `SCENE_GRAVITY_X`, `SCENE_GRAVITY_Y` | gravity in m/s², y down (physics only) |
+| `SCENE_PHYSICS_TIME_STEP`, `SCENE_PHYSICS_SUB_STEPS` | 1/60 s and 4: the fixed step (physics only) |
 | `SCENE_ID_<NAME>`, `SCENE_ID_COUNT` | scene ids (`SceneId` enum, scene_manager.h) |
 
 ## Types
@@ -31,7 +35,10 @@ when the id isn't a live entity of the right kind.
 | `ScenePose` | final `position`, `rotation`, `scale` after parents and the World |
 | `SceneSprite` | `size`, `tint`, `shape` |
 | `SceneShape` | `SCENE_SHAPE_RECTANGLE`, `SCENE_SHAPE_CIRCLE` (ellipse when not square), `SCENE_SHAPE_TRIANGLE` (points up) |
-| `SceneBoxCollider` | `offset`, `size`, `is_trigger` |
+| `SceneBoxCollider` | `offset`, `size`, `is_trigger`, `density`, `friction`, `restitution` |
+| `SceneRigidbody` | `type`, `gravity_scale`, `linear_damping`, `angular_damping`, `fixed_rotation`, `is_bullet` (physics only) |
+| `SceneBodyType` | `SCENE_BODY_STATIC`, `SCENE_BODY_KINEMATIC`, `SCENE_BODY_DYNAMIC` (physics only) |
+| `SceneContactEvent` | `kind` (`SCENE_TRIGGER_ENTER` / `_EXIT`, `SCENE_CONTACT_BEGIN` / `_END`), `entity`, `other` (physics only) |
 | `SceneUIRectTransform` | `anchor_min`, `anchor_max`, `pivot`, `position`, `size` |
 | `SceneUIRectangle` | `color` |
 | `SceneUILabel` | `text`, `font_size`, `spacing`, `align_h`, `align_v`, `color`, `font` |
@@ -70,6 +77,7 @@ when the id isn't a live entity of the right kind.
 | `void scene_manager_init(SceneManager *m, int first)` | loads every scene, shows `first` |
 | `SceneData *scene_manager_current(SceneManager *m)` | the scene shown |
 | `void scene_manager_reload(SceneManager *m, int id)` | rebuilds one scene from its exported data |
+| `void scene_manager_update(SceneManager *m, float dt)` | the current scene's physics, when exported; once per frame |
 | `void scene_manager_draw(SceneManager *m)` | draws the current scene; it may switch `current` |
 | `void scene_manager_draw_ui(SceneManager *m, SceneScaleMode mode)` | the UI of the scene just drawn; after `scene_end` |
 | `void scene_manager_deinit(SceneManager *m)` | unloads every scene |
@@ -108,6 +116,7 @@ when the id isn't a live entity of the right kind.
 | `void scene_remove_sprite(SceneData *scene, int id)` | |
 | `SceneBoxCollider *scene_set_collider(SceneData *scene, int id, Vector2 offset, Vector2 size, bool is_trigger)` | add or replace |
 | `SceneBoxCollider *scene_get_collider(SceneData *scene, int id)` | or NULL |
+| `void scene_set_collider_material(SceneData *scene, int id, float density, float friction, float restitution)` | physics material |
 | `void scene_remove_collider(SceneData *scene, int id)` | |
 | `void scene_draw(SceneData *scene)` | every sprite in drawing order |
 | `void scene_draw_colliders(SceneData *scene, Color color)` | debug outlines |
@@ -134,6 +143,23 @@ Component pointers stay valid until a component of the same type is added or rem
 | `SceneUIText scene_ui_text(const SceneData *scene, int id, float font_size, float spacing)` | the element's rectangle and the sizes in pixels |
 | `void scene_draw_ui_text(Font font, const char *text, Rectangle rect, float font_size, float spacing, SceneTextAlign align_h, SceneTextAlign align_v, Color color)` | aligned text in a rectangle, any font |
 | `void scene_draw_ui(SceneData *scene, SceneScaleMode mode)` | lays out and draws the UI, then `on_draw_ui`; after `scene_end` |
+
+## Physics (only when `SCENE_PHYSICS` is 1)
+
+| Function | |
+|---|---|
+| `SceneRigidbody *scene_set_rigidbody(SceneData *scene, int id, SceneBodyType type)` | add, or change the type; the body is rebuilt on the next step |
+| `SceneRigidbody *scene_get_rigidbody(SceneData *scene, int id)` | or NULL |
+| `void scene_remove_rigidbody(SceneData *scene, int id)` | |
+| `void scene_physics_step(SceneData *scene, float dt)` | fixed steps for `dt` seconds: creates bodies, syncs transforms, records `scene->contacts` |
+| `void scene_physics_rebuild(SceneData *scene, int id)` | rebuild the body after changing its rigidbody or collider fields directly |
+| `b2BodyId scene_physics_body(const SceneData *scene, int id)` | the Box2D body (metres), or `b2_nullBodyId` |
+| `Vector2 scene_get_velocity(const SceneData *scene, int id)` | scene units per second |
+| `void scene_set_velocity(SceneData *scene, int id, Vector2 velocity)` | |
+| `void scene_apply_impulse(SceneData *scene, int id, Vector2 impulse)` | kg × scene units per second |
+| `void scene_apply_force(SceneData *scene, int id, Vector2 force)` | kg × scene units per second², for one step |
+
+`SceneData` adds `physics_world` (`b2WorldId`) and `contacts[0 .. contact_count-1]`.
 
 ## Memory
 

@@ -11,6 +11,7 @@ export/
   src/           project_main.c (an example main) and your own .c files
   generated/     one .h/.c per scene, scenes.h, scene_manager.h/.c
   utils/         scene_common.h/.c (the runtime), easy_memory.h/.c (memory regions)
+  box2d/         Box2D, when physics is on (see Physics)
   .vscode/       c_cpp_properties.json (IntelliSense)
   .gitignore     ignores bin/
   bin/           build output (made by the Makefile)
@@ -49,7 +50,8 @@ so with Makefile set to Never, keep your own.
 
 ## Building with the Makefile
 
-The Makefile needs GNU make (on Windows, for example, `mingw32-make`) and a C99 compiler.
+The Makefile needs GNU make (on Windows, for example, `mingw32-make`) and a C11 compiler.
+The code is C11 because Box2D's headers need it; with physics off, it also builds as C99.
 
 ```bash
 make release RAYLIB_SRC=path/to/raylib/src
@@ -78,7 +80,7 @@ link a library built for MSVC, and the other way round: errors like
 **Other variables:**
 
 - **`CC`:** the compiler, e.g. `CC=clang`.
-- **`CFLAGS`:** compiler flags (default `-std=c99 -O2 -Wall -Wextra`).
+- **`CFLAGS`:** compiler flags (default `-std=c11 -O2 -Wall -Wextra`).
 - **`EXCLUDE`:** source files to leave out, e.g. `EXCLUDE=src/project_main.c` when your
   game has its own `main()`.
 
@@ -110,6 +112,7 @@ Every call that touches raylib (loading scenes, drawing) must come after `InitWi
 | Click | add an entity at the mouse (clicks on the UI don't) |
 | Delete | remove the last added entity |
 | C | show or hide box colliders |
+| Space | with physics: make an entity called "Player" jump |
 | R | reload the scene from its exported data |
 | F11 / Alt+Enter | toggle fullscreen |
 | Esc | quit |

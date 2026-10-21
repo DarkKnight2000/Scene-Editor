@@ -1,0 +1,2 @@
+Box2D v3.1.1 (https://github.com/erincatto/box2d, tag v3.1.1, commit 8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3), MIT.
+Only include/, src/ and LICENSE are vendored. Exports copy these (see Project Settings).

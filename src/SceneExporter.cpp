@@ -151,7 +151,7 @@ std::string sceneIdentifier(const std::string& sceneName) {
 }
 
 bool exportScene(const Scene& scene, const std::string& sceneName, const std::filesystem::path& outDir,
-                 std::string& error) {
+                 bool physics, std::string& error) {
     const std::string id = sceneIdentifier(sceneName);
     const std::string prefix = "scene_" + id;
     const std::string guard = "SCENE_" + upper(id) + "_H";
@@ -258,6 +258,39 @@ void {{prefix}}_draw(SceneData *scene, int *current);
         if (const auto* collider = registry.try_get<BoxColliderComponent>(e)) {
             body << "    scene_set_collider(scene, " << ref << ", " << vector2(collider->offset) << ", "
                  << vector2(collider->size) << ", " << (collider->isTrigger ? "true" : "false") << ");\n";
+            const BoxColliderComponent defaults;
+            if (collider->density != defaults.density || collider->friction != defaults.friction ||
+                collider->restitution != defaults.restitution) {
+                body << "    scene_set_collider_material(scene, " << ref << ", " << floatLiteral(collider->density) << ", "
+                     << floatLiteral(collider->friction) << ", " << floatLiteral(collider->restitution) << ");\n";
+            }
+        }
+        if (const auto* rb = registry.try_get<RigidbodyComponent>(e); rb != nullptr && physics) {
+            const char* const types[] = {"SCENE_BODY_STATIC", "SCENE_BODY_KINEMATIC", "SCENE_BODY_DYNAMIC"};
+            const RigidbodyComponent defaults;
+            std::ostringstream fields;
+            if (rb->gravityScale != defaults.gravityScale) {
+                fields << "            rb->gravity_scale = " << floatLiteral(rb->gravityScale) << ";\n";
+            }
+            if (rb->linearDamping != defaults.linearDamping) {
+                fields << "            rb->linear_damping = " << floatLiteral(rb->linearDamping) << ";\n";
+            }
+            if (rb->angularDamping != defaults.angularDamping) {
+                fields << "            rb->angular_damping = " << floatLiteral(rb->angularDamping) << ";\n";
+            }
+            if (rb->fixedRotation) {
+                fields << "            rb->fixed_rotation = true;\n";
+            }
+            if (rb->isBullet) {
+                fields << "            rb->is_bullet = true;\n";
+            }
+            const std::string call = "scene_set_rigidbody(scene, " + ref + ", " + types[static_cast<int>(rb->type)] + ")";
+            if (fields.str().empty()) {
+                body << "    " << call << ";\n";
+            } else {
+                body << "    {\n        SceneRigidbody *rb = " << call << ";\n        if (rb != NULL) {\n"
+                     << fields.str() << "        }\n    }\n";
+            }
         }
     }
 
@@ -365,6 +398,7 @@ extern const char *const scene_names[SCENE_ID_COUNT];
        manager.scenes[{{first}}].on_draw = my_logic;    optional, any time
        scene_manager_init(&manager, {{first}});         after InitWindow
        ...each frame:
+       scene_manager_update(&manager, GetFrameTime());
        scene_begin(mode);  scene_manager_draw(&manager);  scene_end();
        scene_manager_draw_ui(&manager, mode);
        ...
@@ -388,6 +422,10 @@ SceneData *scene_manager_current(SceneManager *manager);
 
 /* Rebuilds scene `id` from its exported data; its hooks are kept. */
 void scene_manager_reload(SceneManager *manager, int id);
+
+/* Advances the current scene by `dt` seconds (e.g. GetFrameTime()): its physics, when the
+   export has physics. Call once per frame, before drawing. */
+void scene_manager_update(SceneManager *manager, float dt);
 
 /* Draws the current scene with its draw function, passing `current` so the scene can
    switch to another. A value that isn't a SceneId is ignored. */
@@ -441,6 +479,15 @@ void scene_manager_reload(SceneManager *manager, int id) {
     if (is_scene_id(id)) {
         scene_loads[id](&manager->scenes[id]);
     }
+}
+
+void scene_manager_update(SceneManager *manager, float dt) {
+#if SCENE_PHYSICS
+    scene_physics_step(scene_manager_current(manager), dt);
+#else
+    (void)manager;
+    (void)dt;
+#endif
 }
 
 void scene_manager_draw(SceneManager *manager) {
@@ -703,7 +750,7 @@ ScalingCode scalingCode(const ExportSettings& options) {
 } // namespace
 
 bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display,
-                      const ExportSettings& options, std::string& error) {
+                      const ExportSettings& options, const PhysicsSettings& physics, std::string& error) {
     const ScalingCode scaling = scalingCode(options);
     std::string poolHeaders;
     std::string poolSources;
@@ -711,6 +758,10 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
         poolHeaders += poolHeader(spec) + "\n";
         poolSources += poolSource(spec);
     }
+    // Rigidbodies only exist with physics.
+    constexpr ComponentPoolSpec kRigidbodyPool{"SceneRigidbodyPool", "SceneRigidbody", "rigidbody_pool"};
+    poolHeaders += "#if SCENE_PHYSICS\n" + poolHeader(kRigidbodyPool) + "#endif\n\n";
+    poolSources += "#if SCENE_PHYSICS\n" + poolSource(kRigidbodyPool) + "#endif /* SCENE_PHYSICS */\n\n";
     const std::vector<std::pair<std::string, std::string>> values{
         {"marker", kGeneratedMarker},
         {"width", floatLiteral(static_cast<float>(display.width))},
@@ -723,6 +774,10 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
         {"ui_canvas", scaling.uiCanvas},
         {"pool_headers", poolHeaders},
         {"pool_sources", poolSources},
+        {"physics", physics.enabled ? "1" : "0"},
+        {"pixels_per_meter", floatLiteral(physics.pixelsPerMeter)},
+        {"gravity_x", floatLiteral(physics.gravityX)},
+        {"gravity_y", floatLiteral(physics.gravityY)},
     };
 
     const std::string h = fill(R"GEN({{marker}}: code shared by every exported scene. Do not edit.
@@ -733,6 +788,17 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
 #include <stddef.h>
 
 #include <raylib.h>
+
+/* Box2D physics (Project Settings > Physics). Box2D's headers need C11. */
+#define SCENE_PHYSICS {{physics}}
+#if SCENE_PHYSICS
+#include <box2d/box2d.h>
+#define SCENE_PIXELS_PER_METER {{pixels_per_meter}} /* scene units in one metre (Box2D works in metres) */
+#define SCENE_GRAVITY_X {{gravity_x}}        /* metres per second squared, y down */
+#define SCENE_GRAVITY_Y {{gravity_y}}
+#define SCENE_PHYSICS_TIME_STEP (1.0f / 60.0f) /* fixed step of scene_physics_step */
+#define SCENE_PHYSICS_SUB_STEPS 4
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -785,7 +851,11 @@ void scene_end(void);
    --------------------------------------------------------------------------------------- */
 
 #ifndef SCENE_MEMORY_SIZE
+#if SCENE_PHYSICS
+#define SCENE_MEMORY_SIZE (32u * 1024u * 1024u) /* Box2D's worlds live here too */
+#else
 #define SCENE_MEMORY_SIZE (8u * 1024u * 1024u)
+#endif
 #endif
 
 struct EM;
@@ -847,8 +917,55 @@ typedef struct SceneSprite {
 typedef struct SceneBoxCollider {
     Vector2 offset; /* from the entity's position, before scaling */
     Vector2 size;
-    bool is_trigger;
+    bool is_trigger;  /* with physics: a sensor that reports overlaps but doesn't collide */
+    float density;    /* physics material: kg per square metre (default 1) */
+    float friction;   /* default 0.6 */
+    float restitution; /* bounciness 0..1 (default 0) */
 } SceneBoxCollider;
+
+/* ---------------------------------------------------------------------------------------
+   Physics (Box2D): only when SCENE_PHYSICS is 1 (Project Settings > Physics)
+   --------------------------------------------------------------------------------------- */
+
+#if SCENE_PHYSICS
+
+/* Body type: STATIC never moves, KINEMATIC moves by its velocity only, DYNAMIC is moved by
+   gravity, forces and collisions. */
+typedef enum SceneBodyType {
+    SCENE_BODY_STATIC,
+    SCENE_BODY_KINEMATIC,
+    SCENE_BODY_DYNAMIC
+} SceneBodyType;
+
+/* Makes an entity a Box2D body; its box collider, if any, is the body's shape. An entity
+   with a box collider but no rigidbody is a static body. Change a rigidbody's fields before
+   its body exists (the first scene_physics_step after it was added), or call
+   scene_physics_rebuild afterwards. */
+typedef struct SceneRigidbody {
+    SceneBodyType type;
+    float gravity_scale;   /* 1 = normal gravity */
+    float linear_damping;  /* 0 = none */
+    float angular_damping;
+    bool fixed_rotation;   /* never rotates (e.g. a platformer character) */
+    bool is_bullet;        /* continuous collision for fast movers */
+} SceneRigidbody;
+
+/* What happened during the last scene_physics_step. */
+typedef enum SceneContactKind {
+    SCENE_TRIGGER_ENTER, /* `other` started overlapping trigger `entity` */
+    SCENE_TRIGGER_EXIT,  /* ...and stopped */
+    SCENE_CONTACT_BEGIN, /* `entity` and `other` started touching (solid colliders) */
+    SCENE_CONTACT_END    /* ...and stopped */
+} SceneContactKind;
+
+typedef struct SceneContactEvent {
+    SceneContactKind kind;
+    int entity; /* the trigger, for trigger events */
+    int other;
+} SceneContactEvent;
+
+#endif /* SCENE_PHYSICS */
+
 
 /* UI: elements under the Canvas are laid out on the screen instead of placed in the scene,
    so the camera and the World transform never move them. The Canvas is the window (with
@@ -937,6 +1054,9 @@ typedef struct SceneData {
     SceneUIRectTransformPool ui_transforms; /* exactly the UI elements have one */
     SceneUIRectanglePool ui_rectangles;
     SceneUILabelPool ui_labels;
+#if SCENE_PHYSICS
+    SceneRigidbodyPool rigidbodies;
+#endif
 
     /* World-pose cache, indexed by entity id: poses[id] is valid after
        scene_update_poses() until a transform, parent or the World changes. */
@@ -958,6 +1078,17 @@ typedef struct SceneData {
     const Font *ui_font;        /* labels without their own font use this; NULL: raylib's default */
     void *user_data;            /* anything the hooks need */
     struct EM *memory;          /* region for this scene's arrays; NULL: scene_memory() */
+
+#if SCENE_PHYSICS
+    /* Physics state, made by scene_physics_step (b2_nullWorldId / no bodies before). */
+    b2WorldId physics_world;
+    b2BodyId *bodies;          /* by entity id: its body, or a null id */
+    ScenePose *body_poses;     /* by entity id: its placement when last synced with its body */
+    float physics_time;        /* time not yet stepped */
+    SceneContactEvent *contacts; /* events of the last scene_physics_step */
+    int contact_count;
+    int contact_capacity;
+#endif
 } SceneData;
 
 /* A transform with the given values that inherits rotation and scale. */
@@ -1009,6 +1140,8 @@ void scene_remove_sprite(SceneData *scene, int id);
 SceneBoxCollider *scene_set_collider(SceneData *scene, int id, Vector2 offset, Vector2 size, bool is_trigger);
 SceneBoxCollider *scene_get_collider(SceneData *scene, int id);
 void scene_remove_collider(SceneData *scene, int id);
+/* The collider's physics material (see SceneBoxCollider); nothing happens if it has none. */
+void scene_set_collider_material(SceneData *scene, int id, float density, float friction, float restitution);
 SceneUIRectangle *scene_set_ui_rectangle(SceneData *scene, int id, Color color); /* UI elements only */
 SceneUIRectangle *scene_get_ui_rectangle(SceneData *scene, int id);
 void scene_remove_ui_rectangle(SceneData *scene, int id);
@@ -1077,6 +1210,40 @@ void scene_draw_ui_text(Font font, const char *text, Rectangle rect, float font_
    given to scene_begin(). */
 void scene_draw_ui(SceneData *scene, SceneScaleMode mode);
 
+#if SCENE_PHYSICS
+/* ----- Physics (Box2D) -------------------------------------------------------------------
+   Box2D works in metres: SCENE_PIXELS_PER_METER scene units are one metre. These functions
+   take and return scene units, and convert. Physics happens in the World's own space, so
+   moving the World transform (e.g. screen shake) doesn't move bodies. */
+
+/* Rigidbody component: set (add, or change the type) returns it, get returns it or NULL. */
+SceneRigidbody *scene_set_rigidbody(SceneData *scene, int id, SceneBodyType type);
+SceneRigidbody *scene_get_rigidbody(SceneData *scene, int id);
+void scene_remove_rigidbody(SceneData *scene, int id);
+
+/* Advances the physics by `dt` seconds (e.g. GetFrameTime()) in fixed steps of
+   SCENE_PHYSICS_TIME_STEP. It creates the Box2D world and the bodies it needs, pushes
+   entities the game moved into their bodies, steps, writes moved bodies back into the
+   transforms, and records scene->contacts. The SceneManager calls it for the current scene
+   in scene_manager_update. */
+void scene_physics_step(SceneData *scene, float dt);
+
+/* Re-creates the entity's body from its rigidbody and box collider on the next step, after
+   you changed their fields (scene_set_rigidbody and scene_set_collider do it themselves). */
+void scene_physics_rebuild(SceneData *scene, int id);
+
+/* The entity's Box2D body, for the full Box2D API (in metres); b2_nullBodyId if it has
+   none yet (bodies are created by scene_physics_step). */
+b2BodyId scene_physics_body(const SceneData *scene, int id);
+
+/* Velocity in scene units per second; impulses in kg * scene units per second; forces in
+   kg * scene units per second squared. They do nothing for entities without a body. */
+Vector2 scene_get_velocity(const SceneData *scene, int id);
+void scene_set_velocity(SceneData *scene, int id, Vector2 velocity);
+void scene_apply_impulse(SceneData *scene, int id, Vector2 impulse);
+void scene_apply_force(SceneData *scene, int id, Vector2 force);
+#endif /* SCENE_PHYSICS */
+
 /* Returns the scene's memory to its region; the scene is empty (and reusable) afterwards,
    keeping on_draw, on_draw_ui, ui_font, user_data and memory. */
 void scene_unload(SceneData *scene);
@@ -1093,6 +1260,7 @@ void scene_unload(SceneData *scene);
 #include "scene_common.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "easy_memory.h"
@@ -1146,6 +1314,15 @@ static void release(void *block) {
         em_free(block); /* finds its own region */
     }
 }
+
+#if SCENE_PHYSICS
+static void physics_forget(SceneData *scene, int id); /* destroys the entity's body, if any */
+#else
+static void physics_forget(SceneData *scene, int id) {
+    (void)scene;
+    (void)id;
+}
+#endif
 
 /* ----- Component pools ----- */
 
@@ -1270,6 +1447,10 @@ SceneTransform scene_transform(float x, float y, float rotation, float scale_x, 
 static bool reserve_entity_ids(SceneData *scene, int capacity) {
     EM *const em = memory_of(scene);
     const int old_capacity = scene->entity_capacity;
+    if (old_capacity == 0 && scene->world.scale.x == 0.0f && scene->world.scale.y == 0.0f) {
+        /* A zero-initialised scene: its World starts as the identity, not scale 0. */
+        scene->world = scene_transform(0.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+    }
     const size_t old_n = (size_t)old_capacity;
     const size_t new_n = (size_t)capacity;
     SceneEntity *entities = (SceneEntity *)grow(em, scene->entities, old_n * sizeof(SceneEntity), new_n * sizeof(SceneEntity));
@@ -1315,6 +1496,25 @@ static bool reserve_entity_ids(SceneData *scene, int capacity) {
         !ui_label_pool_reserve_ids(em, &scene->ui_labels, old_capacity, capacity)) {
         return false;
     }
+#if SCENE_PHYSICS
+    {
+        b2BodyId *bodies = (b2BodyId *)grow(em, scene->bodies, old_n * sizeof(b2BodyId), new_n * sizeof(b2BodyId));
+        ScenePose *body_poses;
+        if (bodies == NULL) {
+            return false;
+        }
+        memset(bodies + old_capacity, 0, (new_n - old_n) * sizeof(b2BodyId)); /* zero = no body */
+        scene->bodies = bodies;
+        body_poses = (ScenePose *)grow(em, scene->body_poses, old_n * sizeof(ScenePose), new_n * sizeof(ScenePose));
+        if (body_poses == NULL) {
+            return false;
+        }
+        scene->body_poses = body_poses;
+        if (!rigidbody_pool_reserve_ids(em, &scene->rigidbodies, old_capacity, capacity)) {
+            return false;
+        }
+    }
+#endif
     scene->entity_capacity = capacity;
     return true;
 }
@@ -1394,11 +1594,15 @@ bool scene_remove_entity(SceneData *scene, int id) {
             scene_set_parent(scene, i, scene->entities[id].parent, true);
         }
     }
+    physics_forget(scene, id);
     sprite_pool_remove(&scene->sprites, id);
     collider_pool_remove(&scene->colliders, id);
     ui_transform_pool_remove(&scene->ui_transforms, id);
     ui_rectangle_pool_remove(&scene->ui_rectangles, id);
     ui_label_pool_remove(&scene->ui_labels, id);
+#if SCENE_PHYSICS
+    rigidbody_pool_remove(&scene->rigidbodies, id);
+#endif
     scene->entities[id].alive = false;
     for (i = 0; i < scene->order_count; ++i) {
         if (scene->order[i] == id) {
@@ -1504,13 +1708,30 @@ void scene_remove_sprite(SceneData *scene, int id) {
 }
 
 SceneBoxCollider *scene_set_collider(SceneData *scene, int id, Vector2 offset, Vector2 size, bool is_trigger) {
+    const bool existed = is_live(scene, id) && collider_pool_get(&scene->colliders, id) != NULL;
     SceneBoxCollider *collider = is_live(scene, id) ? collider_pool_emplace(memory_of(scene), &scene->colliders, id) : NULL;
     if (collider != NULL) {
         collider->offset = offset;
         collider->size = size;
         collider->is_trigger = is_trigger;
+        if (!existed) {
+            collider->density = 1.0f;
+            collider->friction = 0.6f;
+            collider->restitution = 0.0f;
+        }
+        physics_forget(scene, id); /* re-created with the new shape on the next physics step */
     }
     return collider;
+}
+
+void scene_set_collider_material(SceneData *scene, int id, float density, float friction, float restitution) {
+    SceneBoxCollider *collider = scene_get_collider(scene, id);
+    if (collider != NULL) {
+        collider->density = density;
+        collider->friction = friction;
+        collider->restitution = restitution;
+        physics_forget(scene, id);
+    }
 }
 
 SceneBoxCollider *scene_get_collider(SceneData *scene, int id) {
@@ -1519,6 +1740,7 @@ SceneBoxCollider *scene_get_collider(SceneData *scene, int id) {
 
 void scene_remove_collider(SceneData *scene, int id) {
     collider_pool_remove(&scene->colliders, id);
+    physics_forget(scene, id);
 }
 
 SceneUIRectangle *scene_set_ui_rectangle(SceneData *scene, int id, Color color) {
@@ -1858,12 +2080,327 @@ void scene_draw_ui(SceneData *scene, SceneScaleMode mode) {
     }
 }
 
+
+#if SCENE_PHYSICS
+/* ----- Physics (Box2D) ----- */
+
+/* Box2D allocates from the shared memory region too. */
+static void *physics_alloc(unsigned int size, int alignment) {
+    EM *em = scene_memory();
+    return em != NULL ? em_alloc_aligned(em, size, (size_t)alignment) : NULL;
+}
+
+static void physics_free(void *block) {
+    release(block);
+}
+
+static b2Vec2 to_meters(Vector2 v) {
+    b2Vec2 m;
+    m.x = v.x / SCENE_PIXELS_PER_METER;
+    m.y = v.y / SCENE_PIXELS_PER_METER;
+    return m;
+}
+
+static Vector2 to_scene_units(b2Vec2 m) {
+    Vector2 v;
+    v.x = m.x * SCENE_PIXELS_PER_METER;
+    v.y = m.y * SCENE_PIXELS_PER_METER;
+    return v;
+}
+
+/* Where an entity is in the World's own space (its pose without the World transform). */
+static ScenePose physics_pose(const SceneData *scene, int id) {
+    int chain[SCENE_MAX_DEPTH];
+    int count = 0;
+    int current;
+    ScenePose pose;
+    pose.position.x = 0.0f;
+    pose.position.y = 0.0f;
+    pose.rotation = 0.0f;
+    pose.scale.x = 1.0f;
+    pose.scale.y = 1.0f;
+    for (current = id; is_live(scene, current) && count < SCENE_MAX_DEPTH; current = scene->entities[current].parent) {
+        chain[count++] = current;
+    }
+    while (count > 0) {
+        pose = compose(pose, scene->entities[chain[--count]].transform);
+    }
+    return pose;
+}
+
+/* Sets the entity's transform so that, in the World's space, it is at `position` with
+   `rotation` (degrees); its scale is kept. */
+static void set_physics_pose(SceneData *scene, int id, Vector2 position, float rotation) {
+    SceneTransform *t = &scene->entities[id].transform;
+    const ScenePose base = physics_pose(scene, scene->entities[id].parent);
+    const float parent_rotation = t->inherit_rotation ? base.rotation : 0.0f;
+    const float scale_x = t->inherit_scale ? base.scale.x : 1.0f;
+    const float scale_y = t->inherit_scale ? base.scale.y : 1.0f;
+    Vector2 offset;
+    offset.x = position.x - base.position.x;
+    offset.y = position.y - base.position.y;
+    offset = rotate(offset, -parent_rotation);
+    t->position.x = divide_or(offset.x, scale_x, t->position.x);
+    t->position.y = divide_or(offset.y, scale_y, t->position.y);
+    t->rotation = rotation - parent_rotation;
+}
+
+static bool has_body(const SceneData *scene, int id) {
+    return scene->bodies != NULL && id >= 0 && id < scene->entity_capacity && B2_IS_NON_NULL(scene->bodies[id]);
+}
+
+static void physics_forget(SceneData *scene, int id) {
+    if (has_body(scene, id)) {
+        if (b2Body_IsValid(scene->bodies[id])) {
+            b2DestroyBody(scene->bodies[id]);
+        }
+        scene->bodies[id] = b2_nullBodyId;
+    }
+}
+
+/* Shapes and bodies carry their entity id + 1 as user data. */
+static int shape_entity(b2ShapeId shape) {
+    return b2Shape_IsValid(shape) ? (int)(intptr_t)b2Shape_GetUserData(shape) - 1 : -1;
+}
+
+static void create_body(SceneData *scene, int id) {
+    const SceneRigidbody *rb = rigidbody_pool_get(&scene->rigidbodies, id);
+    const SceneBoxCollider *collider = collider_pool_get(&scene->colliders, id);
+    const ScenePose pose = physics_pose(scene, id);
+    b2BodyDef def = b2DefaultBodyDef();
+    b2BodyId body;
+    def.type = rb == NULL || rb->type == SCENE_BODY_STATIC ? b2_staticBody
+             : rb->type == SCENE_BODY_KINEMATIC              ? b2_kinematicBody
+                                                             : b2_dynamicBody;
+    def.position = to_meters(pose.position);
+    def.rotation = b2MakeRot(pose.rotation * DEG2RAD);
+    def.userData = (void *)(intptr_t)(id + 1);
+    if (rb != NULL) {
+        def.gravityScale = rb->gravity_scale;
+        def.linearDamping = rb->linear_damping;
+        def.angularDamping = rb->angular_damping;
+        def.fixedRotation = rb->fixed_rotation;
+        def.isBullet = rb->is_bullet;
+    }
+    body = b2CreateBody(scene->physics_world, &def);
+    if (collider != NULL) {
+        /* The box at the entity's current scale, offset from its position. */
+        b2ShapeDef shape = b2DefaultShapeDef();
+        Vector2 half;
+        Vector2 centre;
+        b2Polygon box;
+        half.x = collider->size.x * fabsf(pose.scale.x) * 0.5f;
+        half.y = collider->size.y * fabsf(pose.scale.y) * 0.5f;
+        centre.x = collider->offset.x * pose.scale.x;
+        centre.y = collider->offset.y * pose.scale.y;
+        box = b2MakeOffsetBox(half.x / SCENE_PIXELS_PER_METER, half.y / SCENE_PIXELS_PER_METER, to_meters(centre),
+                              b2Rot_identity);
+        shape.density = collider->density;
+        shape.material.friction = collider->friction;
+        shape.material.restitution = collider->restitution;
+        shape.isSensor = collider->is_trigger;
+        shape.enableSensorEvents = true;
+        shape.enableContactEvents = true;
+        shape.userData = (void *)(intptr_t)(id + 1);
+        b2CreatePolygonShape(body, &shape, &box);
+    }
+    scene->bodies[id] = body;
+    scene->body_poses[id] = pose;
+}
+
+static void record_contact(SceneData *scene, SceneContactKind kind, b2ShapeId a, b2ShapeId b) {
+    const int entity = shape_entity(a);
+    const int other = shape_entity(b);
+    if (entity < 0 || other < 0) {
+        return; /* a shape destroyed meanwhile */
+    }
+    if (scene->contact_count == scene->contact_capacity) {
+        const int capacity = scene->contact_capacity > 0 ? scene->contact_capacity * 2 : 32;
+        SceneContactEvent *contacts =
+            (SceneContactEvent *)grow(memory_of(scene), scene->contacts, (size_t)scene->contact_count * sizeof(SceneContactEvent),
+                                      (size_t)capacity * sizeof(SceneContactEvent));
+        if (contacts == NULL) {
+            return;
+        }
+        scene->contacts = contacts;
+        scene->contact_capacity = capacity;
+    }
+    scene->contacts[scene->contact_count].kind = kind;
+    scene->contacts[scene->contact_count].entity = entity;
+    scene->contacts[scene->contact_count].other = other;
+    ++scene->contact_count;
+}
+
+static void record_events(SceneData *scene) {
+    const b2SensorEvents sensors = b2World_GetSensorEvents(scene->physics_world);
+    const b2ContactEvents contacts = b2World_GetContactEvents(scene->physics_world);
+    int i;
+    for (i = 0; i < sensors.beginCount; ++i) {
+        record_contact(scene, SCENE_TRIGGER_ENTER, sensors.beginEvents[i].sensorShapeId, sensors.beginEvents[i].visitorShapeId);
+    }
+    for (i = 0; i < sensors.endCount; ++i) {
+        record_contact(scene, SCENE_TRIGGER_EXIT, sensors.endEvents[i].sensorShapeId, sensors.endEvents[i].visitorShapeId);
+    }
+    for (i = 0; i < contacts.beginCount; ++i) {
+        record_contact(scene, SCENE_CONTACT_BEGIN, contacts.beginEvents[i].shapeIdA, contacts.beginEvents[i].shapeIdB);
+    }
+    for (i = 0; i < contacts.endCount; ++i) {
+        record_contact(scene, SCENE_CONTACT_END, contacts.endEvents[i].shapeIdA, contacts.endEvents[i].shapeIdB);
+    }
+}
+
+void scene_physics_step(SceneData *scene, float dt) {
+    static bool allocator_set = false;
+    int i;
+    if (B2_IS_NULL(scene->physics_world)) {
+        b2WorldDef def;
+        if (!allocator_set) {
+            b2SetAllocator(physics_alloc, physics_free);
+            allocator_set = true;
+        }
+        def = b2DefaultWorldDef();
+        def.gravity.x = SCENE_GRAVITY_X;
+        def.gravity.y = SCENE_GRAVITY_Y;
+        scene->physics_world = b2CreateWorld(&def);
+        scene->physics_time = 0.0f;
+    }
+
+    /* Bodies for entities that need one, and entities the game moved since the last step. */
+    for (i = 0; i < scene->order_count; ++i) {
+        const int id = scene->order[i];
+        if (is_ui(scene, id)) {
+            continue;
+        }
+        if (!has_body(scene, id)) {
+            if (rigidbody_pool_get(&scene->rigidbodies, id) != NULL || collider_pool_get(&scene->colliders, id) != NULL) {
+                create_body(scene, id);
+            }
+        } else {
+            const ScenePose pose = physics_pose(scene, id);
+            const ScenePose last = scene->body_poses[id];
+            if (pose.position.x != last.position.x || pose.position.y != last.position.y || pose.rotation != last.rotation) {
+                b2Body_SetTransform(scene->bodies[id], to_meters(pose.position), b2MakeRot(pose.rotation * DEG2RAD));
+                scene->body_poses[id] = pose;
+            }
+        }
+    }
+
+    /* Fixed steps for the time that has passed (at most a quarter second's worth). */
+    scene->contact_count = 0;
+    scene->physics_time += dt < 0.25f ? dt : 0.25f;
+    while (scene->physics_time >= SCENE_PHYSICS_TIME_STEP) {
+        b2World_Step(scene->physics_world, SCENE_PHYSICS_TIME_STEP, SCENE_PHYSICS_SUB_STEPS);
+        record_events(scene);
+        scene->physics_time -= SCENE_PHYSICS_TIME_STEP;
+    }
+
+    /* Moving bodies back into their entities, parents before children (a child's transform
+       is relative to its parent's new placement). */
+    {
+        int depth;
+        int max_depth = 0;
+        for (depth = 0; depth <= max_depth; ++depth) {
+            for (i = 0; i < scene->order_count; ++i) {
+                const int id = scene->order[i];
+                const SceneRigidbody *rb = rigidbody_pool_get(&scene->rigidbodies, id);
+                int d = 0;
+                int parent;
+                if (rb == NULL || rb->type == SCENE_BODY_STATIC || !has_body(scene, id)) {
+                    continue;
+                }
+                for (parent = scene->entities[id].parent; is_live(scene, parent) && d < SCENE_MAX_DEPTH;
+                     parent = scene->entities[parent].parent) {
+                    ++d;
+                }
+                if (d > max_depth) {
+                    max_depth = d;
+                }
+                if (d == depth) {
+                    const b2BodyId body = scene->bodies[id];
+                    set_physics_pose(scene, id, to_scene_units(b2Body_GetPosition(body)),
+                                     b2Rot_GetAngle(b2Body_GetRotation(body)) * RAD2DEG);
+                    scene->body_poses[id] = physics_pose(scene, id);
+                }
+            }
+        }
+    }
+}
+
+SceneRigidbody *scene_set_rigidbody(SceneData *scene, int id, SceneBodyType type) {
+    const bool existed = is_live(scene, id) && rigidbody_pool_get(&scene->rigidbodies, id) != NULL;
+    SceneRigidbody *rb = is_live(scene, id) && !is_ui(scene, id)
+                             ? rigidbody_pool_emplace(memory_of(scene), &scene->rigidbodies, id)
+                             : NULL;
+    if (rb != NULL) {
+        if (!existed) {
+            rb->gravity_scale = 1.0f;
+            rb->linear_damping = 0.0f;
+            rb->angular_damping = 0.0f;
+            rb->fixed_rotation = false;
+            rb->is_bullet = false;
+        }
+        rb->type = type;
+        physics_forget(scene, id); /* re-created with the new settings on the next step */
+    }
+    return rb;
+}
+
+SceneRigidbody *scene_get_rigidbody(SceneData *scene, int id) {
+    return is_live(scene, id) ? rigidbody_pool_get(&scene->rigidbodies, id) : NULL;
+}
+
+void scene_remove_rigidbody(SceneData *scene, int id) {
+    rigidbody_pool_remove(&scene->rigidbodies, id);
+    physics_forget(scene, id);
+}
+
+void scene_physics_rebuild(SceneData *scene, int id) {
+    physics_forget(scene, id);
+}
+
+b2BodyId scene_physics_body(const SceneData *scene, int id) {
+    return has_body(scene, id) ? scene->bodies[id] : b2_nullBodyId;
+}
+
+Vector2 scene_get_velocity(const SceneData *scene, int id) {
+    const Vector2 none = {0.0f, 0.0f};
+    return has_body(scene, id) ? to_scene_units(b2Body_GetLinearVelocity(scene->bodies[id])) : none;
+}
+
+void scene_set_velocity(SceneData *scene, int id, Vector2 velocity) {
+    if (has_body(scene, id)) {
+        b2Body_SetLinearVelocity(scene->bodies[id], to_meters(velocity));
+    }
+}
+
+void scene_apply_impulse(SceneData *scene, int id, Vector2 impulse) {
+    if (has_body(scene, id)) {
+        b2Body_ApplyLinearImpulseToCenter(scene->bodies[id], to_meters(impulse), true);
+    }
+}
+
+void scene_apply_force(SceneData *scene, int id, Vector2 force) {
+    if (has_body(scene, id)) {
+        b2Body_ApplyForceToCenter(scene->bodies[id], to_meters(force), true);
+    }
+}
+#endif /* SCENE_PHYSICS */
+
 void scene_unload(SceneData *scene) {
     const SceneDrawHook on_draw = scene->on_draw;
     const SceneDrawUIHook on_draw_ui = scene->on_draw_ui;
     const Font *const ui_font = scene->ui_font;
     void *const user_data = scene->user_data;
     struct EM *const memory = scene->memory;
+#if SCENE_PHYSICS
+    if (B2_IS_NON_NULL(scene->physics_world)) {
+        b2DestroyWorld(scene->physics_world); /* and every body in it */
+    }
+    release(scene->bodies);
+    release(scene->body_poses);
+    release(scene->contacts);
+    rigidbody_pool_free(&scene->rigidbodies);
+#endif
     release(scene->entities);
     release(scene->order);
     release(scene->poses);
@@ -1910,6 +2447,7 @@ bool writeProjectMain(const std::string& projectName, const std::vector<std::str
 //                           the mouse is shown instead)
 //           Delete          remove the last entity added
 //           C               show / hide colliders
+//           Space           with physics: make an entity called "Player" jump
 //           R               reload the scene from its exported data
 //           Esc             quit
 // Options:  --windowed      start in a window (design size, fitted to the monitor)
@@ -2261,6 +2799,59 @@ static int test_scene_memory(void) {
     return failures;
 }
 
+#if SCENE_PHYSICS
+/* Physics: a box falls through a trigger onto the ground and comes to rest on it. */
+static int test_physics(void) {
+    SceneData scene;
+    const char *const name = "physics";
+    int failures = 0;
+    int ground, box, zone, step;
+    int entered = 0;
+    int landed = 0;
+    float expected_y;
+    ScenePose pose;
+    memset(&scene, 0, sizeof(scene));
+    ground = scene_add_entity(&scene, "ground", SCENE_WORLD);
+    scene_entity(&scene, ground)->transform.position = (Vector2){0.0f, 300.0f};
+    scene_set_collider(&scene, ground, (Vector2){0.0f, 0.0f}, (Vector2){800.0f, 40.0f}, false);
+    zone = scene_add_entity(&scene, "zone", SCENE_WORLD);
+    scene_entity(&scene, zone)->transform.position = (Vector2){0.0f, 150.0f};
+    scene_set_collider(&scene, zone, (Vector2){0.0f, 0.0f}, (Vector2){200.0f, 40.0f}, true);
+    box = scene_add_entity(&scene, "box", SCENE_WORLD);
+    scene_set_collider(&scene, box, (Vector2){0.0f, 0.0f}, (Vector2){40.0f, 40.0f}, false);
+    scene_set_rigidbody(&scene, box, SCENE_BODY_DYNAMIC)->fixed_rotation = true;
+
+    for (step = 0; step < 240; ++step) {
+        int k;
+        scene_physics_step(&scene, 1.0f / 60.0f);
+        for (k = 0; k < scene.contact_count; ++k) {
+            const SceneContactEvent *c = &scene.contacts[k];
+            entered += c->kind == SCENE_TRIGGER_ENTER && c->entity == zone && c->other == box;
+            landed += c->kind == SCENE_CONTACT_BEGIN && ((c->entity == box && c->other == ground) || (c->entity == ground && c->other == box));
+        }
+    }
+    pose = scene_entity_pose(&scene, box);
+    expected_y = 300.0f - 20.0f - 20.0f; /* ground top minus half the box */
+    failures += check(fabsf(pose.position.y - expected_y) < 2.0f, "a dynamic body falls and rests on the ground", name);
+    failures += check(fabsf(scene_get_velocity(&scene, box).y) < 1.0f, "a resting body has no velocity", name);
+    failures += check(entered == 1, "falling through a trigger reports one trigger enter", name);
+    failures += check(landed == 1, "landing reports one contact begin", name);
+
+    /* The game moves an entity: its body follows. */
+    scene_entity(&scene, box)->transform.position = (Vector2){300.0f, 0.0f};
+    scene_physics_step(&scene, 1.0f / 60.0f);
+    pose = scene_entity_pose(&scene, box);
+    failures += check(fabsf(pose.position.x - 300.0f) < 1.0f && pose.position.y < 10.0f, "moving an entity moves its body",
+                      name);
+    failures += check(B2_IS_NON_NULL(scene_physics_body(&scene, box)), "bodies are created by the step", name);
+    scene_remove_entity(&scene, box);
+    failures += check(B2_IS_NULL(scene_physics_body(&scene, box)), "removing an entity destroys its body", name);
+    scene_unload(&scene);
+    failures += check(B2_IS_NULL(scene.physics_world), "unloading destroys the physics world", name);
+    return failures;
+}
+#endif
+
 /* Scene switching: a scene's on_draw hook sets *current; the manager shows that scene next. */
 static int switch_target;
 static void switch_to_target(SceneData *scene, int *current) {
@@ -2343,6 +2934,9 @@ int main(int argc, char **argv) {
         }
         failures += test_scene_manager(&manager);
         failures += test_scene_memory();
+#if SCENE_PHYSICS
+        failures += test_physics();
+#endif
     }
 #endif
 
@@ -2386,6 +2980,14 @@ int main(int argc, char **argv) {
             if (IsKeyPressed(KEY_DELETE) && scene_remove_entity(scene, last_added[manager.current])) {
                 last_added[manager.current] = -1;
             }
+#if SCENE_PHYSICS
+            /* Physics: Space makes an entity called "Player" jump (if it has a body). */
+            if (IsKeyPressed(KEY_SPACE)) {
+                const int player = scene_find_entity(scene, "Player");
+                const Vector2 velocity = {scene_get_velocity(scene, player).x, -6.0f * SCENE_PIXELS_PER_METER};
+                scene_set_velocity(scene, player, velocity);
+            }
+#endif
             /* ...or rebuild the scene from its exported data. */
             if (IsKeyPressed(KEY_R)) {
                 scene_manager_reload(&manager, manager.current);
@@ -2395,6 +2997,9 @@ int main(int argc, char **argv) {
 
         BeginDrawing();
         ClearBackground((Color){20, 20, 23, 255});
+
+        /* Physics of the current scene (when the export has physics). */
+        scene_manager_update(&manager, GetFrameTime());
 
         /* The scene's draw runs its logic, which may switch to another scene: remember
            which one this frame shows. */
@@ -2420,8 +3025,8 @@ int main(int argc, char **argv) {
         DrawText(TextFormat("%s  (%d/%d, %d entities)   scale: %s", scene_names[shown], shown + 1, SCENE_ID_COUNT,
                             scene->order_count, scale_mode_names[mode]),
                  10, 10, 20, RAYWHITE);
-        DrawText(TextFormat("Left/Right scene   M scale   click add   Delete remove   C colliders   R reload   F11 %s",
-                            fullscreen ? "windowed" : "fullscreen"),
+        DrawText(TextFormat("Left/Right scene   M scale   click add   Delete remove   C colliders   R reload%s   F11 %s",
+                            SCENE_PHYSICS ? "   Space jump" : "", fullscreen ? "windowed" : "fullscreen"),
                  10, 34, 20, GRAY);
         EndDrawing();
     }
@@ -2496,6 +3101,29 @@ bool writeGitignore(const std::filesystem::path& outDir, const std::string& proj
     return writeFile(path, text, error);
 }
 
+bool writeBox2D(const std::filesystem::path& outDir, const std::filesystem::path& sourceDir, std::string& error) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(sourceDir / "include" / "box2d" / "box2d.h", ec) ||
+        !std::filesystem::is_directory(sourceDir / "src", ec)) {
+        error = "Box2D (include/box2d/box2d.h and src/) not found in " + sourceDir.string();
+        return false;
+    }
+    const std::filesystem::path dir = outDir / "box2d";
+    const auto options = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
+    std::filesystem::create_directories(dir, ec);
+    for (const char* part : {"include", "src"}) {
+        std::filesystem::copy(sourceDir / part, dir / part, options, ec);
+        if (ec) {
+            error = "can't copy Box2D's " + std::string(part) + " from " + sourceDir.string() + ": " + ec.message();
+            return false;
+        }
+    }
+    if (std::filesystem::is_regular_file(sourceDir / "LICENSE", ec)) {
+        std::filesystem::copy_file(sourceDir / "LICENSE", dir / "LICENSE", std::filesystem::copy_options::overwrite_existing, ec);
+    }
+    return true;
+}
+
 bool writeVSCodeFiles(const std::filesystem::path& outDir, const std::string& projectName, std::string& error) {
     using json = nlohmann::ordered_json;
     const std::filesystem::path path = outDir / ".vscode" / "c_cpp_properties.json";
@@ -2508,9 +3136,9 @@ bool writeVSCodeFiles(const std::filesystem::path& outDir, const std::string& pr
         return json{{"name", name},
                     {"includePath",
                      {"${workspaceFolder}/src", "${workspaceFolder}/generated", "${workspaceFolder}/utils",
-                      "${env:RAYLIB_INCLUDE}", "${env:RAYLIB_SRC}"}},
+                      "${workspaceFolder}/box2d/include", "${env:RAYLIB_INCLUDE}", "${env:RAYLIB_SRC}"}},
                     {"defines", std::move(defines)},
-                    {"cStandard", "c99"},
+                    {"cStandard", "c11"},
                     {"cppStandard", "c++17"}};
     };
     const json properties{
@@ -2575,6 +3203,7 @@ bool writeMakefile(const std::string& projectName, const std::vector<std::string
 #
 #   src/         project_main.c (an example main) and your own code: every src/*.c is built
 #   generated/   the scenes, scenes.h and the SceneManager; rewritten by every export
+#   box2d/       Box2D (physics), when Project Settings > Physics is on
 #   utils/       scene_common: the runtime scene library every scene uses, and easy_memory
 #                (the memory regions scenes allocate from; MIT, see easy_memory_LICENSE.txt)
 #   bin/         everything the build makes: bin/{{target}} and bin/{{target}}_test, and
@@ -2617,7 +3246,7 @@ INCLUDE_DIRS := $(SRC_DIR) $(GENERATED_DIR) $(UTILS_DIR)
 EXCLUDE ?=
 SOURCES := $(filter-out $(EXCLUDE),$(foreach dir,$(INCLUDE_DIRS),$(wildcard $(dir)/*.c)))
 
-CFLAGS ?= -std=c99 -O2 -Wall -Wextra
+CFLAGS ?= -std=c11 -O2 -Wall -Wextra
 RELEASE_CFLAGS := -DNDEBUG
 TEST_CFLAGS := -DSCENE_TESTS -Wpedantic -Werror
 CPPFLAGS += $(addprefix -I,$(INCLUDE_DIRS))
@@ -2634,6 +3263,16 @@ ifeq ($(origin RAYLIB_LIBS),undefined)
     else
         RAYLIB_LIBS := -lraylib
     endif
+endif
+
+# Box2D (physics), when the export includes it (Project Settings > Physics): built from
+# box2d/ with its own flags (it needs C17), once, into bin/box2d/.
+BOX2D_DIR := box2d
+BOX2D_SOURCES := $(wildcard $(BOX2D_DIR)/src/*.c)
+ifneq ($(strip $(BOX2D_SOURCES)),)
+    BOX2D_OBJECTS := $(BOX2D_SOURCES:$(BOX2D_DIR)/src/%.c=$(BIN_DIR)/box2d/%.o)
+    BOX2D_CFLAGS := -std=gnu17 -ffp-contract=off -w -I$(BOX2D_DIR)/include -I$(BOX2D_DIR)/src
+    CPPFLAGS += -I$(BOX2D_DIR)/include
 endif
 
 # Windows: make runs recipes in sh if it finds one (e.g. Git Bash), otherwise in cmd.
@@ -2675,7 +3314,7 @@ RELEASE_OBJECTS := $(SOURCES:%.c=$(BIN_DIR)/release/%.o)
 TEST_OBJECTS := $(SOURCES:%.c=$(BIN_DIR)/test/%.o)
 # -MMD -MP: also write a .d file listing the headers each source includes.
 DEPFLAGS := -MMD -MP
-LINK = $(LDFLAGS) $(RAYLIB_OBJECTS) $(RAYLIB_LIBS) $(PLATFORM_LIBS)
+LINK = $(LDFLAGS) $(RAYLIB_OBJECTS) $(BOX2D_OBJECTS) $(RAYLIB_LIBS) $(PLATFORM_LIBS)
 
 .PHONY: all release run test clean
 
@@ -2683,7 +3322,7 @@ all: release
 
 release: $(TARGET)
 
-$(TARGET): $(RELEASE_OBJECTS) $(RAYLIB_OBJECTS)
+$(TARGET): $(RELEASE_OBJECTS) $(RAYLIB_OBJECTS) $(BOX2D_OBJECTS)
 	$(CC) $(CFLAGS) $(RELEASE_OBJECTS) -o $@ $(LINK)
 
 $(BIN_DIR)/release/%.o: %.c
@@ -2696,7 +3335,7 @@ run: release
 test: $(TEST_TARGET)
 	"$(CURDIR)/$(TEST_TARGET)" --frames {{frames}}
 
-$(TEST_TARGET): $(TEST_OBJECTS) $(RAYLIB_OBJECTS)
+$(TEST_TARGET): $(TEST_OBJECTS) $(RAYLIB_OBJECTS) $(BOX2D_OBJECTS)
 	$(CC) $(CFLAGS) $(TEST_OBJECTS) -o $@ $(LINK)
 
 $(BIN_DIR)/test/%.o: %.c
@@ -2713,6 +3352,11 @@ $(BIN_DIR)/raylib/%.o: $(RAYLIB_SRC)/%.c
 	@$(call MKDIR,$(@D))
 	$(CC) $(CFLAGS) $(RAYLIB_CFLAGS) $(DEPFLAGS) -c $(RAYLIB_LANG) $< -o $@
 
+# Box2D from box2d/ (when the export has it).
+$(BIN_DIR)/box2d/%.o: $(BOX2D_DIR)/src/%.c
+	@$(call MKDIR,$(@D))
+	$(CC) $(CFLAGS) $(BOX2D_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
 # macOS: GLFW's Cocoa backend is Objective-C.
 ifdef RAYLIB_DARWIN
 $(BIN_DIR)/raylib/rglfw.o: RAYLIB_LANG := -x objective-c
@@ -2722,7 +3366,7 @@ clean:
 	-$(call RMDIR,$(BIN_DIR))
 
 # Header dependencies from earlier builds (missing on the first build, which is fine).
--include $(RELEASE_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d) $(RAYLIB_OBJECTS:.o=.d)
+-include $(RELEASE_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d) $(RAYLIB_OBJECTS:.o=.d) $(BOX2D_OBJECTS:.o=.d)
 )MAKE",
                                       {{"project", cString(projectName)},
                                        {"target", sceneIdentifier(projectName)},

@@ -1,5 +1,6 @@
 #include "Workspace.h"
 
+#include "Components.h"
 #include "Log.h"
 #include "SceneExporter.h"
 #include "SceneSerializer.h"
@@ -698,6 +699,8 @@ void Workspace::openProjectSettings() {
     m_settingsMode = 0;
     m_settingsEasyMemory = m_project.easyMemoryDir;
     m_settingsExport = m_project.exportSettings;
+    m_settingsPhysics = m_project.physics;
+    m_settingsBox2d = m_project.box2dDir;
     for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
         if (kScaleModes[i] == m_project.display.scaleMode) {
             m_settingsMode = static_cast<int>(i);
@@ -707,7 +710,7 @@ void Workspace::openProjectSettings() {
 }
 
 void Workspace::drawProjectSettingsDialog() {
-    const Rectangle box = beginModal(760.0f, 560.0f);
+    const Rectangle box = beginModal(760.0f, 720.0f);
     bool close = ui::windowBox(box, "Project Settings");
     const float lx = box.x + 16.0f;
     const float fx = box.x + 200.0f;
@@ -811,6 +814,38 @@ void Workspace::drawProjectSettingsDialog() {
     ui::label({fx + 212.0f, box.y + 362.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
     ui::label({fx + 212.0f, box.y + 394.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
 
+    // Physics (Box2D) in the exported game.
+    const float py = box.y + 500.0f;
+    DrawLineV({lx, py - 12.0f}, {box.x + box.width - 16.0f, py - 12.0f}, ui::styleColor(LINE_COLOR));
+    ui::label({lx, py, 180.0f, 26.0f}, "Physics (Box2D)", text);
+    ui::checkbox({fx, py + 3.0f, 20.0f, 20.0f}, &m_settingsPhysics.enabled);
+    ui::label({fx + 26.0f, py, 300.0f, 26.0f}, "Export Box2D and rigidbodies", text);
+    ui::label({lx, py + 34.0f, 180.0f, 26.0f}, "Pixels per metre", text);
+    ui::dragFloat({fx, py + 34.0f, 200.0f, 26.0f}, &m_settingsPhysics.pixelsPerMeter, 0.5f);
+    m_settingsPhysics.pixelsPerMeter = std::clamp(m_settingsPhysics.pixelsPerMeter, 1.0f, 100000.0f);
+    ui::label({lx, py + 66.0f, 180.0f, 26.0f}, "Gravity (m/s^2)", text);
+    Rectangle gx;
+    Rectangle gy;
+    ui::splitHalves({fx, py + 66.0f, 300.0f, 26.0f}, gx, gy);
+    ui::dragFloat(gx, &m_settingsPhysics.gravityX, 0.05f, "X");
+    ui::dragFloat(gy, &m_settingsPhysics.gravityY, 0.05f, "Y");
+    ui::label({fx + 310.0f, py + 66.0f, fw - 310.0f, 26.0f}, "y points down", dim);
+    ui::label({lx, py + 98.0f, 180.0f, 26.0f}, "Box2D path", text);
+    ui::textField({fx, py + 98.0f, fw - 96.0f, 26.0f}, m_settingsBox2d);
+    if (ui::button({fx + fw - 90.0f, py + 98.0f, 90.0f, 26.0f}, "Default")) {
+        m_settingsBox2d = Project::defaultBox2dDir();
+    }
+    {
+        Project candidateBox2d = m_project;
+        candidateBox2d.box2dDir = m_settingsBox2d;
+        std::error_code box2dEc;
+        const bool box2dFound =
+            std::filesystem::is_regular_file(candidateBox2d.box2dPath() / "include" / "box2d" / "box2d.h", box2dEc);
+        ui::label({fx, py + 130.0f, fw, 24.0f},
+                  box2dFound ? "Found." : "include/box2d/box2d.h not found here: exports with physics will fail.",
+                  box2dFound ? dim : Color{230, 120, 90, 255});
+    }
+
     const float by = box.y + box.height - 12.0f - kButtonHeight;
     const bool save = ui::button({box.x + box.width - 12.0f - 120.0f, by, 120.0f, kButtonHeight}, "Save");
     if (ui::button({box.x + box.width - 12.0f - 240.0f, by, 110.0f, kButtonHeight}, "Cancel") ||
@@ -824,6 +859,8 @@ void Workspace::drawProjectSettingsDialog() {
         m_project.display.scaleMode = kScaleModes[std::clamp(m_settingsMode, 0, 2)];
         m_project.easyMemoryDir = m_settingsEasyMemory.empty() ? Project::defaultEasyMemoryDir() : m_settingsEasyMemory;
         m_project.exportSettings = m_settingsExport;
+        m_project.physics = m_settingsPhysics;
+        m_project.box2dDir = m_settingsBox2d.empty() ? Project::defaultBox2dDir() : m_settingsBox2d;
         m_project.exportSettings.includeMode(m_project.display.scaleMode);
         std::string error;
         if (saveProject(m_project, error)) {
@@ -927,7 +964,11 @@ bool Workspace::exportProject() {
             scene = &loaded;
         }
 
-        if (!exportScene(*scene, name, outDir, error)) {
+        if (!m_project.physics.enabled && !scene->registry().view<RigidbodyComponent>().empty()) {
+            logWarning("Export: " + file.filename().string() +
+                       " has rigidbodies, but physics is off in Project Settings: they aren't exported");
+        }
+        if (!exportScene(*scene, name, outDir, m_project.physics.enabled, error)) {
             logError("Export: " + file.filename().string() + ": " + error);
             ++failed;
             continue;
@@ -945,7 +986,7 @@ bool Workspace::exportProject() {
 
     std::string error;
     bool usable = !exported.empty();
-    if (usable && !(writeSceneCommon(outDir, m_project.display, options, error) &&
+    if (usable && !(writeSceneCommon(outDir, m_project.display, options, m_project.physics, error) &&
                     writeScenesHeader(exported, outDir, error) && writeSceneManager(exported, outDir, error) &&
                     (!editable[1].write || writeProjectMain(m_project.name, exported, outDir, error)) &&
                     (!editable[0].write || writeMakefile(m_project.name, exported, options.modeCount(), outDir, error)) &&
@@ -957,6 +998,11 @@ bool Workspace::exportProject() {
     }
     if (!notWritten.empty()) {
         logInfo("Export: not written, as set in Project Settings: " + notWritten);
+    }
+    if (usable && m_project.physics.enabled && !writeBox2D(outDir, m_project.box2dPath(), error)) {
+        logError("Export: " + error + ". Set the Box2D path in Project Settings, or turn physics off.");
+        ++failed;
+        usable = false; // the export can't build without it
     }
     if (usable && !writeEasyMemory(outDir, m_project.easyMemoryPath(), error)) {
         logError("Export: " + error + ". Set the easy_memory folder in Project Settings.");

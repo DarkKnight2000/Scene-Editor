@@ -51,6 +51,7 @@ static void run_game(void) {
     const SceneScaleMode mode = SCENE_DEFAULT_SCALE_MODE;
     scene_manager_init(&manager, SCENE_ID_DEMO); /* loads every scene; after InitWindow */
     while (!WindowShouldClose()) {
+        scene_manager_update(&manager, GetFrameTime()); /* physics, when exported */
         BeginDrawing();
         ClearBackground(BLACK);
         scene_begin(mode);
@@ -67,6 +68,7 @@ static void run_game(void) {
 | Function | |
 |---|---|
 | `scene_manager_init(m, first)` | loads every scene (keeping hooks already set) and shows `first` |
+| `scene_manager_update(m, dt)` | advances the current scene by `dt` seconds: its [physics](physics.md), when exported. Call once per frame, before drawing. |
 | `scene_manager_current(m)` | the `SceneData` being shown |
 | `scene_manager_reload(m, id)` | rebuilds scene `id` from its exported data (hooks kept) |
 | `scene_manager_draw(m)` | draws the current scene; its logic may switch to another |

@@ -5,7 +5,8 @@ shared memory region from [easy_memory](https://github.com/EasyMem/easy_memory) 
 included in `utils/`). The runtime doesn't call `malloc`, `realloc` or `free`.
 
 - **Created on first use:** the shared region is created the first time a scene needs
-  memory, with `SCENE_MEMORY_SIZE` bytes (default 8 MiB).
+  memory, with `SCENE_MEMORY_SIZE` bytes (default 8 MiB, or 32 MiB with physics, since
+  Box2D allocates from it too).
 - **Doesn't grow:** when the region is full, adding an entity returns -1 and setting a
   component returns NULL, as running out of memory would.
 - **Reused:** freed space is reused, so loading and unloading scenes doesn't use the
@@ -18,7 +19,7 @@ included in `utils/`). The runtime doesn't call `malloc`, `realloc` or `free`.
 Compile with a different size, for example:
 
 ```bash
-make CFLAGS="-std=c99 -O2 -Wall -Wextra -DSCENE_MEMORY_SIZE=33554432"
+make CFLAGS="-std=c11 -O2 -Wall -Wextra -DSCENE_MEMORY_SIZE=67108864"
 ```
 
 As a rough guide, each entity costs its `SceneEntity` (about 100 bytes), its pose and UI

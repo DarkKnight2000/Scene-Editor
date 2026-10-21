@@ -19,7 +19,7 @@ json_dep = dependency('nlohmann_json')
 
 # Defaults for the Play button: build exported projects with this compiler and this raylib.
 cc = meson.get_compiler('c')
-play_cflags = '-std=c99 -O2 -Wall -Wextra'
+play_cflags = '-std=c11 -O2 -Wall -Wextra'
 if host_machine.system() == 'windows' and cc.get_id() == 'clang' and cc.get_define('_MSC_VER') != ''
   # MSVC ABI: the game must use the same C runtime as the raylib library it links.
   vscrt = get_option('b_vscrt')
@@ -42,6 +42,7 @@ configure_file(output : 'PlayDefaults.h', configuration : play_conf)
 # after the editor's source tree moves). Exports copy easy_memory.h from it.
 paths_conf = configuration_data()
 paths_conf.set_quoted('SCENE_EDITOR_EASY_MEMORY_DIR', (meson.current_source_dir() / 'external/easy_memory').replace('\\', '/'))
+paths_conf.set_quoted('SCENE_EDITOR_BOX2D_DIR', (meson.current_source_dir() / 'external/box2d').replace('\\', '/'))
 configure_file(output : 'EditorPaths.h', configuration : paths_conf)
 
 app_link_args = []

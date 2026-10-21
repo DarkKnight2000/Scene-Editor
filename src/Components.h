@@ -49,10 +49,32 @@ struct SpriteComponent {
     SpriteShape shape = SpriteShape::Rectangle;
 };
 
+// A box for collisions. With physics on (Project Settings), it is the entity's Box2D shape:
+// the shape of its Rigidbody, or a static body of its own when the entity has no Rigidbody.
+// A trigger is a Box2D sensor: it reports overlaps but doesn't collide.
 struct BoxColliderComponent {
     Vector2 offset{0.0f, 0.0f};
     Vector2 size{64.0f, 64.0f};
     bool isTrigger = false;
+    float density = 1.0f;     // kg per square metre
+    float friction = 0.6f;
+    float restitution = 0.0f; // bounciness, 0..1
+};
+
+// Box2D body type: Static never moves, Kinematic moves by its velocity only, Dynamic is
+// moved by gravity, forces and collisions.
+enum class BodyType { Static, Kinematic, Dynamic };
+
+// Makes the entity a Box2D body (Project Settings > Physics). Its Box Collider, if any, is
+// the body's shape. The exported game moves dynamic bodies and writes their placement back
+// into the entity's transform.
+struct RigidbodyComponent {
+    BodyType type = BodyType::Dynamic;
+    float gravityScale = 1.0f;
+    float linearDamping = 0.0f;
+    float angularDamping = 0.0f;
+    bool fixedRotation = false; // never rotates (e.g. a platformer character)
+    bool isBullet = false;      // continuous collision for fast movers
 };
 
 // --- UI ---------------------------------------------------------------------------------

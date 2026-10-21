@@ -105,7 +105,12 @@ json projectJson(const Project& project) {
               {"height", project.display.height},
               {"scaleMode", scaleModeName(project.display.scaleMode)}}},
             {"easyMemoryDir", project.easyMemoryDir},
-            {"export", exportJson(project.exportSettings)}};
+            {"export", exportJson(project.exportSettings)},
+            {"physics",
+             {{"enabled", project.physics.enabled},
+              {"pixelsPerMeter", project.physics.pixelsPerMeter},
+              {"gravity", {project.physics.gravityX, project.physics.gravityY}},
+              {"box2dDir", project.box2dDir}}}};
 }
 
 std::filesystem::path sessionPath(const Project& project) {
@@ -136,6 +141,15 @@ int ExportSettings::modeCount() const {
 
 std::string Project::defaultEasyMemoryDir() {
     return SCENE_EDITOR_EASY_MEMORY_DIR;
+}
+
+std::string Project::defaultBox2dDir() {
+    return SCENE_EDITOR_BOX2D_DIR;
+}
+
+std::filesystem::path Project::box2dPath() const {
+    const std::filesystem::path dir = fromUtf8(box2dDir);
+    return dir.is_absolute() ? dir : (root() / dir).lexically_normal();
 }
 
 std::filesystem::path Project::easyMemoryPath() const {
@@ -229,6 +243,20 @@ bool loadProject(const std::filesystem::path& path, Project& project, std::strin
         readPolicy(*e, "gitignore", settings.gitignore);
     }
     loaded.exportSettings.includeMode(loaded.display.scaleMode);
+    if (const auto p = j.find("physics"); p != j.end() && p->is_object()) {
+        PhysicsSettings& physics = loaded.physics;
+        physics.enabled = p->value("enabled", physics.enabled);
+        physics.pixelsPerMeter = std::clamp(p->value("pixelsPerMeter", physics.pixelsPerMeter), 0.001f, 100000.0f);
+        if (const auto g = p->find("gravity"); g != p->end() && g->is_array() && g->size() == 2 && (*g)[0].is_number() &&
+                                              (*g)[1].is_number()) {
+            physics.gravityX = (*g)[0].get<float>();
+            physics.gravityY = (*g)[1].get<float>();
+        }
+        const std::string dir = p->value("box2dDir", std::string());
+        if (!dir.empty()) {
+            loaded.box2dDir = dir;
+        }
+    }
     std::filesystem::create_directories(loaded.scenesDir(), ec);
     project = std::move(loaded);
     return true;

@@ -1,0 +1,613 @@
+{
+  "format": "SceneEditor.scene",
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "World",
+      "world": true,
+      "components": {
+        "transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
+      "name": "Ground",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            0,
+            420
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            1800,
+            60
+          ],
+          "tint": [
+            70,
+            150,
+            80,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            1800,
+            60
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Ramp",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            -520,
+            200
+          ],
+          "rotation": 20,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            600,
+            30
+          ],
+          "tint": [
+            110,
+            110,
+            120,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            600,
+            30
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Trigger Zone",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            300,
+            300
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            260,
+            180
+          ],
+          "tint": [
+            240,
+            200,
+            80,
+            60
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            260,
+            180
+          ],
+          "isTrigger": true,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "Box 1",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            80,
+            330
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            60,
+            60
+          ],
+          "tint": [
+            90,
+            140,
+            230,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            60,
+            60
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "Box 2",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            90,
+            268
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            60,
+            60
+          ],
+          "tint": [
+            120,
+            140,
+            205,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            60,
+            60
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "Box 3",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            80,
+            206
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            60,
+            60
+          ],
+          "tint": [
+            150,
+            140,
+            180,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            60,
+            60
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "Box 4",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            90,
+            144
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            60,
+            60
+          ],
+          "tint": [
+            180,
+            140,
+            155,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            60,
+            60
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "Box 5",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            80,
+            82
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            60,
+            60
+          ],
+          "tint": [
+            210,
+            140,
+            130,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            60,
+            60
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "Bouncy",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            320,
+            -200
+          ],
+          "rotation": 30,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            50,
+            50
+          ],
+          "tint": [
+            230,
+            90,
+            160,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            50,
+            50
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.8
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "Falling Onto Ramp",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            -600,
+            -250
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            70,
+            70
+          ],
+          "tint": [
+            240,
+            140,
+            60,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            70,
+            70
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.2,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "Player",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            -150,
+            300
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1,
+            1
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            40,
+            70
+          ],
+          "tint": [
+            80,
+            200,
+            230,
+            255
+          ],
+          "shape": "rectangle"
+        },
+        "boxCollider": {
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            40,
+            70
+          ],
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6,
+          "restitution": 0.0
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": true,
+          "isBullet": false
+        }
+      }
+    }
+  ]
+}

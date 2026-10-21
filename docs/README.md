@@ -1,6 +1,6 @@
 # Using exported scenes in C
 
-Scene Editor exports a project as plain C99 source for [raylib](https://www.raylib.com/).
+Scene Editor exports a project as plain C11 source for [raylib](https://www.raylib.com/).
 You build it with your game, and scenes become runtime data: entities and components you
 can read, change, add and remove while the game runs.
 
@@ -12,6 +12,7 @@ can read, change, add and remove while the game runs.
 | [Components](components.md) | Sprites and box colliders: setting, reading, looping over them |
 | [Screen scaling](scaling.md) | Design resolution, Expand / Fit / Fill, mouse to scene coordinates |
 | [UI](ui.md) | The Canvas, anchors, UI rectangles and labels, text with your own fonts, clicks |
+| [Physics](physics.md) | Box2D bodies from colliders and rigidbodies, stepping, moving bodies, triggers and contacts |
 | [Memory](memory.md) | Where scene memory comes from, its limits, custom regions |
 | [API reference](api-reference.md) | Every type, macro and function in one place |
 

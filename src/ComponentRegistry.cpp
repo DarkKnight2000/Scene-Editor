@@ -116,13 +116,43 @@ void fromJson(const json& j, SpriteComponent& s) {
 }
 
 json toJson(const BoxColliderComponent& c) {
-    return {{"offset", toJson(c.offset)}, {"size", toJson(c.size)}, {"isTrigger", c.isTrigger}};
+    return {{"offset", toJson(c.offset)}, {"size", toJson(c.size)},     {"isTrigger", c.isTrigger},
+            {"density", c.density},       {"friction", c.friction}, {"restitution", c.restitution}};
 }
 
 void fromJson(const json& j, BoxColliderComponent& c) {
     read(j, "offset", c.offset);
     read(j, "size", c.size);
     read(j, "isTrigger", c.isTrigger);
+    read(j, "density", c.density);
+    read(j, "friction", c.friction);
+    read(j, "restitution", c.restitution);
+}
+
+constexpr const char* kBodyTypeNames[] = {"static", "kinematic", "dynamic"};
+
+json toJson(const RigidbodyComponent& r) {
+    return {{"type", kBodyTypeNames[static_cast<int>(r.type)]},
+            {"gravityScale", r.gravityScale},
+            {"linearDamping", r.linearDamping},
+            {"angularDamping", r.angularDamping},
+            {"fixedRotation", r.fixedRotation},
+            {"isBullet", r.isBullet}};
+}
+
+void fromJson(const json& j, RigidbodyComponent& r) {
+    std::string type;
+    read(j, "type", type);
+    for (int i = 0; i < 3; ++i) {
+        if (type == kBodyTypeNames[i]) {
+            r.type = static_cast<BodyType>(i);
+        }
+    }
+    read(j, "gravityScale", r.gravityScale);
+    read(j, "linearDamping", r.linearDamping);
+    read(j, "angularDamping", r.angularDamping);
+    read(j, "fixedRotation", r.fixedRotation);
+    read(j, "isBullet", r.isBullet);
 }
 
 // The parent is saved by the scene serializer, like Transform's origin.
@@ -263,6 +293,35 @@ void drawBoxCollider(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     vec2Row(grid, "Offset", c.offset, 0.5f);
     vec2Row(grid, "Size", c.size, 0.5f);
     ui::checkbox(grid.row("Is Trigger"), &c.isTrigger);
+    // Physics material (Box2D): used by the exported game when physics is on.
+    ui::dragFloat(grid.row("Density"), &c.density, 0.01f);
+    ui::dragFloat(grid.row("Friction"), &c.friction, 0.01f);
+    ui::dragFloat(grid.row("Restitution"), &c.restitution, 0.01f);
+    c.density = std::max(c.density, 0.0f);
+    c.friction = std::max(c.friction, 0.0f);
+    c.restitution = std::clamp(c.restitution, 0.0f, 1.0f);
+}
+
+void drawRigidbody(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
+    auto& r = scene.registry().get<RigidbodyComponent>(e);
+    int type = static_cast<int>(r.type);
+    if (ui::combo(grid.row("Body Type"), &r.type, {"Static", "Kinematic", "Dynamic"}, &type)) {
+        r.type = static_cast<BodyType>(std::clamp(type, 0, 2));
+    }
+    ui::dragFloat(grid.row("Gravity"), &r.gravityScale, 0.01f, nullptr, "%.2f x");
+    // Damping: linear (L) and angular (A).
+    Rectangle linear;
+    Rectangle angular;
+    ui::splitHalves(grid.row("Damping"), linear, angular);
+    ui::dragFloat(linear, &r.linearDamping, 0.01f, "L");
+    ui::dragFloat(angular, &r.angularDamping, 0.01f, "A");
+    r.linearDamping = std::max(r.linearDamping, 0.0f);
+    r.angularDamping = std::max(r.angularDamping, 0.0f);
+    ui::checkbox(grid.row("Fixed Rot."), &r.fixedRotation);
+    ui::checkbox(grid.row("Bullet"), &r.isBullet);
+    if (!scene.registry().all_of<BoxColliderComponent>(e)) {
+        ui::label(grid.row(""), "Add a Box Collider to give it a shape.", ui::styleColor(TEXT_COLOR_DISABLED));
+    }
 }
 
 // Anchor presets: where the element is pinned (or stretched) on its parent. Choosing one
@@ -396,6 +455,7 @@ const std::array kTypes{
     makeType<SpriteComponent>("Sprite", "sprite", ICON_FILETYPE_IMAGE, true, ComponentScope::World, drawSprite),
     makeType<BoxColliderComponent>("Box Collider", "boxCollider", ICON_BOX_CORNERS_BIG, true, ComponentScope::World,
                                    drawBoxCollider),
+    makeType<RigidbodyComponent>("Rigidbody", "rigidbody", ICON_PLAYER_JUMP, true, ComponentScope::World, drawRigidbody),
     makeType<UIRectTransformComponent>("UI Rect Transform", "uiRectTransform", ICON_BOX_CENTER, false,
                                        ComponentScope::UI, drawUIRectTransform),
     makeType<UIRectangleComponent>("UI Rectangle", "uiRectangle", ICON_WINDOW, true, ComponentScope::UI,
