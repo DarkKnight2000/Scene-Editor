@@ -1,134 +1,129 @@
 # Scenes and the SceneManager
 
-## A scene is a SceneData
+## A scene is a struct
 
-Each exported scene `<name>` (its C identifier: `my level` becomes `my_level`) gets a
-header `generated/<name>.h` with two functions:
-
-```c
-void scene_demo_load(SceneData *scene);                /* build the scene into `scene` */
-void scene_demo_draw(SceneData *scene, int *current);  /* draw it and run its logic hook */
-```
-
-- **`SceneData` holds everything** about one scene: its entities, components, caches and
-  hooks.
-- **A zero-initialised `SceneData` is valid and empty**, so a `static` one needs no setup.
-- **`_load` replaces whatever the `SceneData` held** with the scene as exported, and
-  keeps your hooks.
-- **You can load the same scene into several `SceneData`s**, for example a pristine copy
-  and a working copy.
-- **`scene_unload` frees a scene's memory.** The scene is empty but still usable
-  afterwards.
-
-## Drawing a scene
-
-Scene drawing happens between `scene_begin(mode)` and `scene_end()`, which set up the
-camera that [scales the scene](scaling.md) to the window. The UI is drawn afterwards in
-window space:
+Each scene `<name>` exports `generated/<name>.h` and `.c`. The header declares the
+scene's struct, with one field per entity and UI element. For a scene called `hud`:
 
 ```c
-static void draw_one_scene(SceneData *scene, SceneScaleMode mode) {
-    int current = SCENE_ID_DEMO;
-    scene_begin(mode);
-    scene_demo_draw(scene, &current); /* sprites in drawing order, then scene->on_draw */
-    scene_end();
-    scene_draw_ui(scene, mode);       /* UI on top, then scene->on_draw_ui */
-}
+typedef struct HudScene {
+    SceneTransform world; /* the World root: moves, rotates and zooms the whole scene */
+    const Font *ui_font;  /* labels' font (a label's own font wins); NULL: raylib's default */
+    Rectangle ui_canvas;  /* from the last scene_hud_update_ui: the Canvas in window pixels */
+    float ui_scale;       /* ...and window pixels per canvas unit */
+
+    /* Entities, in drawing order */
+    SceneEntity ground; /* "Ground": rectangle */
+
+    /* UI elements, parents before children (drawn in this order) */
+    SceneUIElement health_bar; /* "Health Bar": rectangle */
+    SceneUIElement minimap;    /* "Minimap": rectangle */
+    SceneUIElement score;      /* "Score": label */
+} HudScene;
 ```
+
+- **Entities** (`SceneEntity`) are placed in the scene: see [Entities](entities.md).
+- **UI elements** (`SceneUIElement`) are laid out on the screen: see [UI](ui.md).
+- **Scenes with physics bodies** also have `physics_world` and `physics_time`: see
+  [Physics](physics.md).
+
+The comment after each field gives its name in the editor and what it has.
+
+## The scene's functions
+
+| Function | What it does |
+|---|---|
+| `scene_<name>_init(s)` | fills in every designed value (and creates the physics world and bodies), then the poses |
+| `scene_<name>_deinit(s)` | frees what init created: the physics world, if any |
+| `scene_<name>_update_poses(s)` | recomputes every entity's `pose` from the transforms |
+| `scene_<name>_draw(s)` | updates the poses and draws the sprites, between `scene_begin` and `scene_end` |
+| `scene_<name>_draw_colliders(s, color)` | debug outlines of the box colliders, between `scene_begin` and `scene_end` |
+| `scene_<name>_update_ui(s, mode)` | lays out every UI element's `rect` for the window |
+| `scene_<name>_draw_ui(s, mode)` | updates the UI layout and draws the UI rectangles and labels, after `scene_end` |
+| `scene_<name>_step(s, dt)` | scenes with physics bodies: advances the physics |
+
+- **Order:** `init` overwrites the whole struct, so call it first and again to start the
+  scene over. Call `deinit` before re-initialising a scene with physics.
+- **Generated code:** `init`, `update_poses`, `draw` and `update_ui` are straight-line
+  code, one statement per entity, with parents always before their children.
 
 ## The SceneManager
 
-`generated/scene_manager.h` lists every scene of the project. It defines:
-
-- **`SceneId`:** `SCENE_ID_<NAME>` for each scene, plus `SCENE_ID_COUNT`.
-- **`scene_names`:** the scene names as they appear in the editor.
-- **`SceneManager`:** holds every scene's `SceneData` and the id of the scene being shown.
+`generated/scene_manager.h` has every scene in one place:
 
 ```c
-static SceneManager manager; /* static: zero-initialised */
+typedef enum SceneId {
+    SCENE_ID_DEMO, /* "demo" */
+    SCENE_ID_HUD,  /* "hud" */
+    SCENE_ID_COUNT
+} SceneId;
 
-static void run_game(void) {
-    const SceneScaleMode mode = SCENE_DEFAULT_SCALE_MODE;
-    scene_manager_init(&manager, SCENE_ID_DEMO); /* loads every scene; after InitWindow */
+typedef struct SceneManager {
+    DemoScene demo;
+    HudScene hud;
+    int current;
+} SceneManager;
+
+extern const char *const scene_names[SCENE_ID_COUNT];
+```
+
+| Function | What it does |
+|---|---|
+| `scene_manager_init(m, first)` | initialises every scene, and shows `first` |
+| `scene_manager_update(m, dt)` | steps the current scene's physics (scenes with bodies) |
+| `scene_manager_draw(m)` | draws the current scene, between `scene_begin` and `scene_end` |
+| `scene_manager_draw_colliders(m, color)` | outlines the current scene's box colliders |
+| `scene_manager_draw_ui(m, mode)` | lays out and draws the current scene's UI, after `scene_end` |
+| `scene_manager_reload(m, id)` | re-initialises a scene from its exported data (its `ui_font` is kept) |
+| `scene_manager_deinit(m)` | frees what every scene's init created |
+
+**Switching scenes:** set `current` to another `SceneId`. Each scene keeps its state while
+it isn't shown.
+
+**Reaching a scene's fields:** use its member, e.g. `manager.hud.score.rect`.
+
+```c
+#include <raylib.h>
+
+#include "scenes.h"
+
+int main(void) {
+    static SceneManager manager;
+    SceneScaleMode mode = SCENE_DEFAULT_SCALE_MODE;
+
+    InitWindow(1280, 720, "My game");
+    SetTargetFPS(60);
+    scene_manager_init(&manager, SCENE_ID_DEMO);
+
     while (!WindowShouldClose()) {
-        scene_manager_update(&manager, GetFrameTime()); /* physics, when exported */
+        if (IsKeyPressed(KEY_RIGHT)) {
+            manager.current = (manager.current + 1) % SCENE_ID_COUNT;
+        }
+        scene_manager_update(&manager, GetFrameTime());
+
         BeginDrawing();
         ClearBackground(BLACK);
         scene_begin(mode);
-        scene_manager_draw(&manager);        /* draws manager.current */
+        scene_manager_draw(&manager);
         scene_end();
-        scene_manager_draw_ui(&manager, mode); /* the UI of the scene just drawn */
+        scene_manager_draw_ui(&manager, mode);
         EndDrawing();
     }
+
     scene_manager_deinit(&manager);
-    scene_memory_destroy();
+    CloseWindow();
+    return 0;
 }
 ```
 
-| Function | |
-|---|---|
-| `scene_manager_init(m, first)` | loads every scene (keeping hooks already set) and shows `first` |
-| `scene_manager_update(m, dt)` | advances the current scene by `dt` seconds: its [physics](physics.md), when exported. Call once per frame, before drawing. |
-| `scene_manager_current(m)` | the `SceneData` being shown |
-| `scene_manager_reload(m, id)` | rebuilds scene `id` from its exported data (hooks kept) |
-| `scene_manager_draw(m)` | draws the current scene; its logic may switch to another |
-| `scene_manager_draw_ui(m, mode)` | draws the UI of the scene `scene_manager_draw` drew |
-| `scene_manager_deinit(m)` | unloads every scene |
-
-Scenes keep their state while another one is shown. To start a scene fresh when you
-switch to it, call `scene_manager_reload`.
-
-## Game logic: on_draw and on_draw_ui
-
-Exported files are rewritten on every export, so your game code doesn't go in them.
-Instead, give a scene **hooks**: function pointers in its `SceneData` that the scene
-calls at the right time.
-
-| Hook | Called by | Space | Use it for |
-|---|---|---|---|
-| `void (*on_draw)(SceneData *scene, int *current)` | the scene's draw function, after its sprites | scene coordinates (inside the camera) | game logic, drawing extra things in the scene, switching scenes |
-| `void (*on_draw_ui)(SceneData *scene)` | `scene_draw_ui`, after the UI | window pixels | HUD logic, drawing text or anything on top |
-
-Both hooks, `ui_font` and `user_data` (a `void *` for your own state) survive
-`scene_unload` and reloads, so you can set them before or after loading.
+**Game logic:** your own logic can switch on `manager.current` and use the scene's
+fields directly:
 
 ```c
-typedef struct PlayerState {
-    int coins;
-} PlayerState;
-
-static PlayerState player_state;
-
-static void level_logic(SceneData *scene, int *current) {
-    PlayerState *state = (PlayerState *)scene->user_data;
-    const int player = scene_find_entity(scene, "Player");
-    SceneEntity *e = scene_entity(scene, player);
-    if (e != NULL && IsKeyDown(KEY_RIGHT)) {
-        e->transform.position.x += 200.0f * GetFrameTime();
+static void level_logic(SceneManager *m) {
+    if (m->current == SCENE_ID_LEVEL &&
+        CheckCollisionPointRec(m->level.player.pose.position, (Rectangle){600.0f, 0.0f, 80.0f, 200.0f})) {
+        m->current = SCENE_ID_LEVEL_2; /* reached the exit */
     }
-    if (e != NULL && e->transform.position.x > 600.0f) {
-        state->coins += 1;
-        *current = SCENE_ID_HUD; /* switch scenes: shown from the next frame on */
-    }
-}
-
-static void setup_hooks(void) {
-    manager.scenes[SCENE_ID_DEMO].on_draw = level_logic;
-    manager.scenes[SCENE_ID_DEMO].user_data = &player_state;
 }
 ```
-
-## Switching scenes
-
-There are two ways to switch:
-
-- **From a scene's own logic:** set `*current` in its `on_draw` hook, as above.
-  `*current` starts as the scene's own `SceneId`.
-- **From anywhere else:** set `manager.current`.
-
-Either way, the new scene is drawn from the next `scene_manager_draw` on. A value that
-isn't a valid `SceneId` is ignored.
-
-`scene_manager_draw_ui` draws the UI of the scene that was actually drawn this frame,
-even if that scene just switched to another. So a frame never shows one scene's world
-with another scene's UI.

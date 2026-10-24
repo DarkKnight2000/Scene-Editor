@@ -7,36 +7,37 @@
 #include "Project.h"
 #include "Scene.h"
 
-// Exports scenes as C99 source for a raylib game. Scenes are runtime data: entities and
-// components can be read, changed, added and removed while the game runs.
+// Exports scenes as C source for a raylib game. The editor does the placement maths: each
+// scene becomes a C struct with one field per entity and UI element, named after it, so the
+// game reads where things are (entity.pose, the box of entity.collider, element.rect) and
+// draws its own things there, with the scene scaled to any window. The hierarchy and the
+// components are fixed at export: nothing is added or removed at runtime.
 //
 // Layout of the export folder:
 //   Makefile
 //   src/         project_main.c, and the user's own code (every src/*.c is built)
 //   generated/   <id>.h/.c for each scene, scenes.h, scene_manager.h/.c
 //   box2d/       Box2D's include/ and src/, copied from the project's Box2D folder (physics on)
-//   utils/       scene_common.h/.c, and easy_memory.h (copied from the project's easy_memory
-//                folder), its LICENSE and a generated easy_memory.c with its implementation
+//   utils/       scene_common.h/.c
 //   .gitignore   ignores bin/
 //   .vscode/     c_cpp_properties.json: IntelliSense include paths and defines, with no
 //                machine-specific paths (raylib.h via $RAYLIB_INCLUDE or $RAYLIB_SRC)
 //   bin/         made by the Makefile: bin/<project>(.exe), bin/<project>_test(.exe), and
 //                object and dependency files in bin/release/ and bin/test/
 //
-//   <id>.h / <id>.c       void scene_<id>_load(SceneData *scene);   (<id> = sceneIdentifier(name))
-//                         void scene_<id>_draw(SceneData *scene, int *current);
-//                         (draws, then runs the scene's on_draw hook, which may set
-//                         *current to another SceneId to switch scenes)
+//   <id>.h / <id>.c       typedef struct <Id>Scene { ... SceneEntity ground; SceneUIElement score; } <Id>Scene;
+//                         scene_<id>_init / _deinit / _update_poses / _draw / _draw_colliders /
+//                         _update_ui / _draw_ui, and _step for scenes with physics bodies
 //   scene_manager.h / .c  SceneId enum (SCENE_ID_<ID>), SceneManager holding every scene's
-//                         SceneData and the current SceneId, scene_manager_init / _draw /
-//                         _reload / _deinit
-//   scene_common.h / .c   shared code: the SceneData / SceneEntity types and their functions
-//                         (scene_add_entity, scene_remove_entity, scene_set_parent,
-//                         scene_set_sprite, scene_draw, ...), and scene_begin(mode) /
-//                         scene_end() which scale the scene to the window
+//                         struct and the current SceneId; scene_manager_init / _update /
+//                         _draw / _draw_ui / _reload / _deinit, by switch
+//   scene_common.h / .c   shared code: SceneEntity / SceneUIElement and the other types,
+//                         pose and UI layout maths, boxes, sprite and text drawing, Box2D
+//                         helpers, and scene_begin(mode) / scene_end() which scale the scene
+//                         to the window
 //   scenes.h              includes scene_manager.h and every exported scene header
-//   project_main.c        example main(): window, a SceneManager, scene logic switching
-//                         scenes, scale mode switching; --frames N smoke test (SCENE_TESTS)
+//   project_main.c        example main(): window, a SceneManager, switching scenes and scale
+//                         modes; --frames N smoke test (SCENE_TESTS)
 //   Makefile              make release / make run / make test / make clean
 //
 // Headers have extern "C" guards, so C++ games can use them too.
@@ -44,6 +45,19 @@
 // Transforms are exported as in the editor (relative to the parent) and placements are
 // computed at runtime with the editor's rules, so the game draws what the editor shows.
 // Scene coordinates are kept: (0, 0) is the scene origin, shown at the centre of the view.
+
+// What the SceneManager and the example main() need to know about an exported scene.
+struct ExportedScene {
+    std::string name;           // the scene's name
+    std::string id;             // sceneIdentifier(name): file names and scene_<id>_ functions
+    std::string type;           // its struct type, e.g. HudScene
+    bool hasBodies = false;     // has a Box2D world (and scene_<id>_step)
+    std::string scoreLabel;     // field of a UI label called "Score", if any (example code)
+    std::string minimapElement; // field of a UI element called "Minimap", if any (example code)
+    std::string playerBody;     // field of a dynamic body called "Player", if any (example code)
+    int entityCount = 0;
+    int uiCount = 0;
+};
 
 // Identifier part of a scene's C names and file names: letters, digits and '_'
 // ("my level" -> "my_level"), used as <id>.c and scene_<id>_draw.
@@ -61,10 +75,10 @@ std::filesystem::path exportedExecutable(const std::filesystem::path& outDir, co
 // First line of every generated file; used to recognise files the editor may replace.
 inline constexpr const char* kGeneratedMarker = "// Generated by Scene Editor";
 
-// Writes <outDir>/generated/<id>.h and .c.
-// With `physics`, rigidbodies are exported too.
+// Writes <outDir>/generated/<id>.h and .c, and fills `info`. With `physics`, rigidbodies and
+// colliders become Box2D bodies.
 bool exportScene(const Scene& scene, const std::string& sceneName, const std::filesystem::path& outDir, bool physics,
-                 std::string& error);
+                 ExportedScene& info, std::string& error);
 
 // Writes <outDir>/utils/scene_common.h and .c, the code shared by every exported scene.
 // The project's design resolution is baked in (SCENE_DESIGN_WIDTH/HEIGHT); its scale
@@ -79,12 +93,11 @@ bool writeScenesHeader(const std::vector<std::string>& sceneNames, const std::fi
                        std::string& error);
 
 // Writes <outDir>/generated/scene_manager.h and .c: the SceneId enum and the SceneManager, in the
-// order given. `sceneNames` must not be empty.
-bool writeSceneManager(const std::vector<std::string>& sceneNames, const std::filesystem::path& outDir,
-                       std::string& error);
+// order given. `scenes` must not be empty.
+bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::filesystem::path& outDir, std::string& error);
 
 // Writes <outDir>/src/project_main.c, a runnable example main() that uses every scene.
-bool writeProjectMain(const std::string& projectName, const std::vector<std::string>& sceneNames,
+bool writeProjectMain(const std::string& projectName, const std::vector<ExportedScene>& scenes,
                       const std::filesystem::path& outDir, std::string& error);
 
 // Writes <outDir>/Makefile, building every .c in src/, generated/ and utils/ into bin/.
@@ -102,10 +115,6 @@ bool writeGitignore(const std::filesystem::path& outDir, const std::string& proj
 // Copies Box2D's include/ and src/ (and LICENSE) from `sourceDir` into <outDir>/box2d. False,
 // with `error`, if they aren't there.
 bool writeBox2D(const std::filesystem::path& outDir, const std::filesystem::path& sourceDir, std::string& error);
-
-// Copies easy_memory.h (and LICENSE, if there) from `sourceDir` into <outDir>/utils and writes
-// utils/easy_memory.c. False, with `error`, if easy_memory.h isn't in `sourceDir`.
-bool writeEasyMemory(const std::filesystem::path& outDir, const std::filesystem::path& sourceDir, std::string& error);
 
 // Deletes every file in `outDir` and its src/, generated/ and utils/ folders that the editor generated earlier (its first line is the
 // "Generated by Scene Editor" marker), so renamed or deleted scenes and older export

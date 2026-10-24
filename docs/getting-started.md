@@ -9,8 +9,8 @@ The project is written to `<project>/export/`:
 export/
   Makefile
   src/           project_main.c (an example main) and your own .c files
-  generated/     one .h/.c per scene, scenes.h, scene_manager.h/.c
-  utils/         scene_common.h/.c (the runtime), easy_memory.h/.c (memory regions)
+  generated/     one .h/.c per scene (its struct and functions), scenes.h, scene_manager.h/.c
+  utils/         scene_common.h/.c (scaling, the shared types, drawing helpers)
   box2d/         Box2D, when physics is on (see Physics)
   .vscode/       c_cpp_properties.json (IntelliSense)
   .gitignore     ignores bin/
@@ -97,25 +97,25 @@ Make also reads these variables from the environment. Setting `RAYLIB_SRC` (or
 ## Your own main()
 
 `src/project_main.c` is a complete example: borderless fullscreen, a SceneManager, scene
-switching, clicking to add entities, and UI text. Read it, then either:
+switching, a label whose text changes, your own text drawn in a UI element's rect, and
+collider outlines. Read it, then either:
 
 - **Start from it:** copy it to your own file in `src/` and build with
   `EXCLUDE=src/project_main.c`, because the export rewrites `project_main.c`.
 - **Use your own main():** the [README](README.md#the-shortest-working-program) has the
   smallest one, and [Scenes](scenes.md) shows one with a SceneManager.
 
-Every call that touches raylib (loading scenes, drawing) must come after `InitWindow()`.
+Every call that touches raylib (initialising scenes, drawing) must come after
+`InitWindow()`.
 
 ## The example's controls
 
 | Key | Action |
 |---|---|
-| Left / Right | previous / next scene (done by the scenes' own logic hook) |
+| Left / Right | previous / next scene |
 | M | cycle the scale mode |
-| Click | add an entity at the mouse (clicks on the UI don't) |
-| Delete | remove the last added entity |
 | C | show or hide box colliders |
-| Space | with physics: make an entity called "Player" jump |
+| Space | with physics: make a dynamic body called "Player" jump |
 | R | reload the scene from its exported data |
 | F11 / Alt+Enter | toggle fullscreen |
 | Esc | quit |
@@ -134,6 +134,6 @@ settings** to *Only if missing* in the [export options](#export-options).
 
 ## Tests
 
-`make test` builds with `-DSCENE_TESTS` and runs `bin/<project>_test --frames N`. That
-exercises the runtime API on every scene and draws every scene in every scale mode, then
-exits with a non-zero code on failure. Release builds contain none of this code.
+`make test` builds with `-DSCENE_TESTS` and strict warnings (`-Wpedantic -Werror`), then
+runs `bin/<project>_test --frames N`, which draws every scene in every scale mode and
+exits. Release builds contain none of this code.

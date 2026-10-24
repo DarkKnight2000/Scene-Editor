@@ -38,10 +38,9 @@ play_conf.set_quoted('SCENE_EDITOR_PLAY_RAYLIB_INCLUDE', raylib_src.replace('\\'
 play_conf.set_quoted('SCENE_EDITOR_PLAY_RAYLIB_LIBS', raylib_lib.full_path().replace('\\', '/'))
 configure_file(output : 'PlayDefaults.h', configuration : play_conf)
 
-# Default easy_memory folder for new projects (Project Settings can point elsewhere, e.g.
-# after the editor's source tree moves). Exports copy easy_memory.h from it.
+# Default Box2D folder for new projects (Project Settings can point elsewhere, e.g.
+# after the editor's source tree moves). Exports with physics copy Box2D from it.
 paths_conf = configuration_data()
-paths_conf.set_quoted('SCENE_EDITOR_EASY_MEMORY_DIR', (meson.current_source_dir() / 'external/easy_memory').replace('\\', '/'))
 paths_conf.set_quoted('SCENE_EDITOR_BOX2D_DIR', (meson.current_source_dir() / 'external/box2d').replace('\\', '/'))
 configure_file(output : 'EditorPaths.h', configuration : paths_conf)
 

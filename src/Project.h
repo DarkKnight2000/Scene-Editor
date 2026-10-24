@@ -64,10 +64,6 @@ struct Project {
     std::string name;
     std::string scenesFolder = "scenes"; // relative to the project folder
     DisplaySettings display;
-    // Folder holding easy_memory.h and its LICENSE, copied into every export. Relative paths
-    // start at the project folder. Defaults to the editor's external/easy_memory; change it
-    // in Project Settings if the editor's source tree moves.
-    std::string easyMemoryDir = defaultEasyMemoryDir();
     ExportSettings exportSettings;
     PhysicsSettings physics;
     // Box2D's folder (with include/ and src/), copied into exports when physics is on.
@@ -76,10 +72,8 @@ struct Project {
 
     std::filesystem::path root() const { return file.parent_path(); }
     std::filesystem::path scenesDir() const { return root() / scenesFolder; }
-    std::filesystem::path easyMemoryPath() const;
     std::filesystem::path box2dPath() const;
 
-    static std::string defaultEasyMemoryDir();
     static std::string defaultBox2dDir();
 };
 

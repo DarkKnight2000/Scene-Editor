@@ -697,7 +697,6 @@ void Workspace::openProjectSettings() {
     m_settingsWidth = static_cast<float>(m_project.display.width);
     m_settingsHeight = static_cast<float>(m_project.display.height);
     m_settingsMode = 0;
-    m_settingsEasyMemory = m_project.easyMemoryDir;
     m_settingsExport = m_project.exportSettings;
     m_settingsPhysics = m_project.physics;
     m_settingsBox2d = m_project.box2dDir;
@@ -710,7 +709,7 @@ void Workspace::openProjectSettings() {
 }
 
 void Workspace::drawProjectSettingsDialog() {
-    const Rectangle box = beginModal(760.0f, 720.0f);
+    const Rectangle box = beginModal(760.0f, 640.0f);
     bool close = ui::windowBox(box, "Project Settings");
     const float lx = box.x + 16.0f;
     const float fx = box.x + 200.0f;
@@ -757,34 +756,19 @@ void Workspace::drawProjectSettingsDialog() {
     ui::label({lx, box.y + 196.0f, box.width - 32.0f, 24.0f},
               "Shown as a frame in the Scene view and used by Export.", dim);
 
-    // easy_memory: copied into every export (utils/), from this folder.
-    ui::label({lx, box.y + 240.0f, 180.0f, 26.0f}, "easy_memory path", text);
-    ui::textField({fx, box.y + 240.0f, fw - 96.0f, 26.0f}, m_settingsEasyMemory);
-    if (ui::button({fx + fw - 90.0f, box.y + 240.0f, 90.0f, 26.0f}, "Default")) {
-        m_settingsEasyMemory = Project::defaultEasyMemoryDir();
-    }
-    Project candidate = m_project;
-    candidate.easyMemoryDir = m_settingsEasyMemory;
-    std::error_code ec;
-    const bool found = std::filesystem::is_regular_file(candidate.easyMemoryPath() / "easy_memory.h", ec);
-    ui::label({fx, box.y + 272.0f, fw, 24.0f},
-              found ? "Found. Relative paths start at the project folder."
-                    : "easy_memory.h not found here: exports will fail.",
-              found ? dim : Color{230, 120, 90, 255});
-
     // Export: which scale modes the runtime supports, and when files you may edit are written.
-    DrawLineV({lx, box.y + 312.0f}, {box.x + box.width - 16.0f, box.y + 312.0f}, ui::styleColor(LINE_COLOR));
-    ui::label({lx, box.y + 324.0f, 180.0f, 26.0f}, "Exported modes", text);
+    DrawLineV({lx, box.y + 232.0f}, {box.x + box.width - 16.0f, box.y + 232.0f}, ui::styleColor(LINE_COLOR));
+    ui::label({lx, box.y + 244.0f, 180.0f, 26.0f}, "Exported modes", text);
     const int defaultMode = std::clamp(m_settingsMode, 0, 2);
     m_settingsExport.scaleModes[defaultMode] = true; // the default mode is always exported
     for (int i = 0; i < 3; ++i) {
-        const Rectangle r{fx + static_cast<float>(i) * 130.0f, box.y + 327.0f, 20.0f, 20.0f};
+        const Rectangle r{fx + static_cast<float>(i) * 130.0f, box.y + 247.0f, 20.0f, 20.0f};
         if (i == defaultMode) {
             GuiDisable();
         }
         ui::checkbox(r, &m_settingsExport.scaleModes[i]);
         GuiEnable();
-        ui::label({r.x + 26.0f, box.y + 324.0f, 100.0f, 26.0f}, scaleModeName(kScaleModes[i]),
+        ui::label({r.x + 26.0f, box.y + 244.0f, 100.0f, 26.0f}, scaleModeName(kScaleModes[i]),
                   i == defaultMode ? dim : text);
     }
 
@@ -804,18 +788,18 @@ void Workspace::drawProjectSettingsDialog() {
     };
     // Bottom row first: an open dropdown draws over the rows below it.
     for (int i = static_cast<int>(std::size(rows)) - 1; i >= 0; --i) {
-        const float y = box.y + 362.0f + static_cast<float>(i) * 32.0f;
+        const float y = box.y + 282.0f + static_cast<float>(i) * 32.0f;
         ui::label({lx, y, 180.0f, 26.0f}, rows[i].label, text);
         int current = static_cast<int>(*rows[i].policy);
         if (ui::combo({fx, y, 200.0f, 26.0f}, rows[i].policy, policies, &current)) {
             *rows[i].policy = kExportPolicies[std::clamp(current, 0, 2)];
         }
     }
-    ui::label({fx + 212.0f, box.y + 362.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
-    ui::label({fx + 212.0f, box.y + 394.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
+    ui::label({fx + 212.0f, box.y + 282.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
+    ui::label({fx + 212.0f, box.y + 314.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
 
     // Physics (Box2D) in the exported game.
-    const float py = box.y + 500.0f;
+    const float py = box.y + 420.0f;
     DrawLineV({lx, py - 12.0f}, {box.x + box.width - 16.0f, py - 12.0f}, ui::styleColor(LINE_COLOR));
     ui::label({lx, py, 180.0f, 26.0f}, "Physics (Box2D)", text);
     ui::checkbox({fx, py + 3.0f, 20.0f, 20.0f}, &m_settingsPhysics.enabled);
@@ -857,7 +841,6 @@ void Workspace::drawProjectSettingsDialog() {
         m_project.display.width = std::clamp(static_cast<int>(std::lround(m_settingsWidth)), 16, 16384);
         m_project.display.height = std::clamp(static_cast<int>(std::lround(m_settingsHeight)), 16, 16384);
         m_project.display.scaleMode = kScaleModes[std::clamp(m_settingsMode, 0, 2)];
-        m_project.easyMemoryDir = m_settingsEasyMemory.empty() ? Project::defaultEasyMemoryDir() : m_settingsEasyMemory;
         m_project.exportSettings = m_settingsExport;
         m_project.physics = m_settingsPhysics;
         m_project.box2dDir = m_settingsBox2d.empty() ? Project::defaultBox2dDir() : m_settingsBox2d;
@@ -942,6 +925,7 @@ bool Workspace::exportProject() {
     std::sort(files.begin(), files.end());
 
     std::vector<std::string> exported;
+    std::vector<ExportedScene> scenes;
     std::vector<std::string> identifiers;
     int failed = 0;
     for (const auto& file : files) {
@@ -977,14 +961,17 @@ bool Workspace::exportProject() {
             logWarning("Export: " + file.filename().string() +
                        " has rigidbodies, but physics is off in Project Settings: they aren't exported");
         }
-        if (!exportScene(*scene, name, outDir, m_project.physics.enabled, error)) {
+        ExportedScene info;
+        if (!exportScene(*scene, name, outDir, m_project.physics.enabled, info, error)) {
             logError("Export: " + file.filename().string() + ": " + error);
             ++failed;
             continue;
         }
         exported.push_back(name);
         identifiers.push_back(id);
-        logInfo("Exported " + id + ".h/.c  (scene_" + id + "_load / _draw, SCENE_ID_" + upperId(id) + ")");
+        logInfo("Exported " + id + ".h/.c  (" + info.type + ", scene_" + id + "_init / _draw, SCENE_ID_" +
+                upperId(id) + ")");
+        scenes.push_back(std::move(info));
     }
 
     for (const auto& doc : m_docs) {
@@ -997,8 +984,8 @@ bool Workspace::exportProject() {
     std::string error;
     bool usable = !exported.empty();
     if (usable && !(writeSceneCommon(outDir, m_project.display, options, m_project.physics, error) &&
-                    writeScenesHeader(exported, outDir, error) && writeSceneManager(exported, outDir, error) &&
-                    (!editable[1].write || writeProjectMain(m_project.name, exported, outDir, error)) &&
+                    writeScenesHeader(exported, outDir, error) && writeSceneManager(scenes, outDir, error) &&
+                    (!editable[1].write || writeProjectMain(m_project.name, scenes, outDir, error)) &&
                     (!editable[0].write || writeMakefile(m_project.name, exported, options.modeCount(), outDir, error)) &&
                     (!editable[2].write || writeVSCodeFiles(outDir, m_project.name, error)) &&
                     (!editable[3].write || writeGitignore(outDir, m_project.name, error)))) {
@@ -1011,11 +998,6 @@ bool Workspace::exportProject() {
     }
     if (usable && m_project.physics.enabled && !writeBox2D(outDir, m_project.box2dPath(), error)) {
         logError("Export: " + error + ". Set the Box2D path in Project Settings, or turn physics off.");
-        ++failed;
-        usable = false; // the export can't build without it
-    }
-    if (usable && !writeEasyMemory(outDir, m_project.easyMemoryPath(), error)) {
-        logError("Export: " + error + ". Set the easy_memory folder in Project Settings.");
         ++failed;
         usable = false; // the export can't build without it
     }

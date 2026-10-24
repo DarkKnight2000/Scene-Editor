@@ -135,7 +135,6 @@ private:
     float m_settingsWidth = 0.0f;
     float m_settingsHeight = 0.0f;
     int m_settingsMode = 0;
-    std::string m_settingsEasyMemory;
     ExportSettings m_settingsExport;
     PhysicsSettings m_settingsPhysics;
     std::string m_settingsBox2d;

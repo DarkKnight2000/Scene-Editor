@@ -7,8 +7,9 @@ A scene has two trees:
 - **The Canvas tree** holds UI elements, which are laid out on the screen. The camera,
   the World transform and screen shake never move them.
 
-UI elements are entities too, with ids, names and parents, but they're placed by a UI
-rect transform instead of a transform.
+The main use of UI elements is to get **rectangles that fit any screen**: design the HUD
+or a menu in the editor, then draw your own widgets into the elements' rects. UI
+rectangles and labels are drawn for you if you add them.
 
 ## Coordinates
 
@@ -20,6 +21,70 @@ rect transform instead of a transform.
 - **Scaling:** UI keeps its size relative to the design and stays pinned to its anchors
   on any window.
 - **Axes:** y points down and (0, 0) is the top-left.
+
+## UI elements
+
+Every UI element is a `SceneUIElement` field of the scene struct:
+
+```c
+typedef struct SceneUIElement {
+    SceneUIRectTransform layout; /* relative to its parent element or the Canvas */
+    Rectangle rect;              /* window pixels, from the last _update_ui / _draw_ui */
+    bool visible;                /* false: neither its rectangle nor its label is drawn */
+    Color color;                 /* fill of its UI rectangle, if it has one */
+    SceneUILabel label;          /* its text, if it has a label */
+} SceneUIElement;
+```
+
+| Function | What it does |
+|---|---|
+| `scene_<name>_update_ui(s, mode)` | lays out every element for the current window into its `rect`, and sets `s->ui_canvas` and `s->ui_scale` |
+| `scene_<name>_draw_ui(s, mode)` | the same, then draws the rectangles and labels (element by element, parents first) |
+
+Pass the same mode as `scene_begin`. Call `draw_ui` after `scene_end()`, then draw your
+own widgets on top.
+
+## Your own widgets in an element's rect
+
+`rect` is in window pixels, so any raylib drawing works with it. Sizes you design in
+canvas units become pixels when multiplied by `s->ui_scale`, so they scale with the rest
+of the UI.
+
+```c
+scene_hud_draw_ui(&hud, mode);
+
+/* A health bar filling the "Health Bar" element. */
+{
+    Rectangle r = hud.health_bar.rect;
+    const float pad = 4.0f * hud.ui_scale; /* 4 canvas units */
+    DrawRectangleRec(r, DARKGRAY);
+    r.x += pad;
+    r.y += pad;
+    r.width = (r.width - 2.0f * pad) * health;
+    r.height -= 2.0f * pad;
+    DrawRectangleRec(r, GREEN);
+}
+
+/* Text inside the "Minimap" element, 24 canvas units tall, at its bottom centre. */
+scene_draw_ui_text(GetFontDefault(), TextFormat("%d FPS", GetFPS()), hud.minimap.rect, 24.0f * hud.ui_scale,
+                   2.0f * hud.ui_scale, SCENE_ALIGN_CENTER, SCENE_ALIGN_END, RAYWHITE);
+```
+
+**Rects before drawing:** `draw_ui` updates the layout itself. To read rects earlier in
+the frame (for clicks, say), call `scene_<name>_update_ui` first, or use last frame's
+rects.
+
+**Clicks:**
+
+```c
+/* A button: the "Play" element. */
+scene_menu_update_ui(&menu, mode);
+const bool over = CheckCollisionPointRec(GetMousePosition(), menu.play.rect);
+menu.play.color = over ? SKYBLUE : BLUE;
+if (over && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    manager.current = SCENE_ID_LEVEL;
+}
+```
 
 ## Rect transforms
 
@@ -47,45 +112,11 @@ typedef struct SceneUIRectTransform {
 | (0, 1) → (1, 1) | stretched along the bottom edge |
 | (0, 0) → (1, 1) | fills the parent |
 
-```c
-static void build_hud(SceneData *scene) {
-    const Vector2 top_right = {1.0f, 0.0f};
-    const Vector2 zero = {0.0f, 0.0f};
+You can change `layout` at runtime, e.g. to slide a panel in; the next `update_ui` uses
+it. `scene_ui_layout(parent, &layout, scale)` is the layout rule itself, if you need a
+rectangle for a layout of your own.
 
-    /* 240 x 240, its top-right corner 24 units in from the window's top-right corner. */
-    const int minimap = scene_add_ui_element(scene, "Minimap", SCENE_CANVAS);
-    *scene_ui_transform(scene, minimap) =
-        scene_ui_rect_transform(top_right, top_right, top_right, (Vector2){-24.0f, 24.0f}, (Vector2){240.0f, 240.0f});
-    scene_set_ui_rectangle(scene, minimap, (Color){30, 40, 70, 220});
-
-    /* A bar along the bottom, 80 units tall, the full width of the window. */
-    const int bar = scene_add_ui_element(scene, "Bottom Bar", SCENE_CANVAS);
-    *scene_ui_transform(scene, bar) = scene_ui_rect_transform((Vector2){0.0f, 1.0f}, (Vector2){1.0f, 1.0f},
-                                                              (Vector2){0.5f, 1.0f}, zero, (Vector2){0.0f, 80.0f});
-    scene_set_ui_rectangle(scene, bar, (Color){20, 20, 26, 230});
-}
-```
-
-Some details:
-
-- **New elements:** `scene_add_ui_element(scene, name, parent)` adds a 200 × 100 element
-  centred on its parent. The parent is `SCENE_CANVAS` or another UI element.
-- **Getting the transform:** `scene_ui_transform(scene, id)` returns it, or NULL if `id`
-  isn't a UI element.
-- **Keeping the two trees apart:**
-  - `scene_add_entity` never puts a scene entity under the UI.
-  - `scene_set_parent` refuses to parent across the two trees.
-  - Sprites and colliders can't be added to UI elements, and UI components can't be
-    added to scene entities.
-- **Re-parenting with `keep_placement`:** for UI elements, the rectangle they had on a
-  canvas of the design resolution is kept.
-
-## UI rectangles and labels
-
-| Component | Functions | Draws |
-|---|---|---|
-| `SceneUIRectangle { color }` | `scene_set_ui_rectangle / _get_ / _remove_` | a filled rectangle covering the element |
-| `SceneUILabel` | `scene_set_ui_label / _get_ / _remove_`, `scene_set_ui_label_text` | text inside the element |
+## Labels
 
 ```c
 typedef struct SceneUILabel {
@@ -100,19 +131,10 @@ typedef struct SceneUILabel {
 ```
 
 ```c
-static void update_score(SceneData *scene, int score) {
-    const int id = scene_find_entity(scene, "Score");
-    scene_set_ui_label_text(scene, id, TextFormat("Score %d", score));
-}
-
-static void add_title(SceneData *scene, int panel) {
-    const int title = scene_add_ui_element(scene, "Title", panel);
-    scene_set_ui_label(scene, title, "PAUSED", 48.0f, 4.0f, SCENE_ALIGN_CENTER, SCENE_ALIGN_CENTER, WHITE);
-}
+scene_set_ui_label_text(&hud.score.label, TextFormat("Score %d", score));
+hud.pause_panel.visible = paused; /* hide the panel's rectangle */
+hud.pause_title.visible = paused; /* ...and its title (children aren't hidden with it) */
 ```
-
-Within each element the rectangle is drawn before the label. Elements are drawn in
-drawing order, parents before children in exported scenes.
 
 ## How text scales
 
@@ -122,8 +144,6 @@ else:
 - **Normal case:** a 48-unit label is 48 pixels tall on a window at the design
   resolution.
 - **Half-size window:** it's 24 pixels tall.
-
-The UI scale for the last layout is `scene->ui_scale`, in window pixels per canvas unit.
 
 raylib's default font is a small bitmap font, so it looks blocky when scaled up. For
 clean text:
@@ -135,78 +155,14 @@ clean text:
 ```c
 static Font game_font;
 
-static void load_fonts(SceneData *scene) {
+static void load_fonts(HudScene *hud) {
     game_font = LoadFontEx("assets/font.ttf", 96, NULL, 0); /* after InitWindow */
     SetTextureFilter(game_font.texture, TEXTURE_FILTER_BILINEAR);
-    scene->ui_font = &game_font; /* every label in this scene without its own font */
-}
-
-static void use_font_for(SceneData *scene, int label_id) {
-    SceneUILabel *label = scene_get_ui_label(scene, label_id);
-    if (label != NULL) {
-        label->font = &game_font; /* just this label */
-    }
+    hud->ui_font = &game_font;           /* every label in this scene without its own font */
+    hud->score.label.font = &game_font;  /* or just one label */
 }
 ```
 
-## Drawing your own text and graphics on the UI
-
-The `on_draw_ui` hook runs after the scene's UI is drawn, in window pixels, so any raylib
-drawing works there. To draw text that scales with the UI inside an element,
-`scene_ui_text` gives you everything `DrawTextEx` needs:
-
-- `rect`: the element's rectangle, in window pixels;
-- `font_size` and `spacing`: the canvas-unit sizes you pass, converted to pixels.
-
-```c
-static void hud_ui(SceneData *scene) {
-    const int minimap = scene_find_entity(scene, "Minimap");
-    const SceneUIText t = scene_ui_text(scene, minimap, 24.0f, 2.0f);
-
-    /* Anywhere inside the rectangle, with DrawTextEx... */
-    DrawTextEx(game_font, "N", (Vector2){t.rect.x + 8.0f, t.rect.y + 4.0f}, t.font_size, t.spacing, RAYWHITE);
-
-    /* ...or aligned: lines split at '\n', each aligned on its own. */
-    scene_draw_ui_text(game_font, TextFormat("%d FPS", GetFPS()), t.rect, t.font_size, t.spacing,
-                       SCENE_ALIGN_CENTER, SCENE_ALIGN_END, RAYWHITE);
-}
-
-static void setup_hud(SceneData *scene) {
-    scene->on_draw_ui = hud_ui;
-}
-```
-
-`scene_draw_ui_text` doesn't clip or wrap, and works with any `Font`, including in your
-own code outside the hook.
-
-## Layout and clicks
-
-| Function | |
-|---|---|
-| `scene_update_ui(scene, mode)` | lays out every element for the current window into `scene->ui_rects` (pixels) |
-| `scene_ui_rect(scene, id)` | an element's rectangle in window pixels, from the last layout |
-| `scene_ui_element_at(scene, point)` | the topmost element with a rectangle or label under `point` (window pixels), or -1 |
-| `scene_draw_ui(scene, mode)` | lays out, draws rectangles and labels, then runs `on_draw_ui` |
-
-`scene_draw_ui` lays the UI out every frame. When you need rectangles before drawing,
-call `scene_update_ui` yourself; or use the previous frame's layout, as below.
-
-```c
-/* A button: an element named "Play" with a rectangle. Uses last frame's layout. */
-static void play_button_logic(SceneData *scene, int *current) {
-    const int button = scene_find_entity(scene, "Play");
-    const int hovered = scene_ui_element_at(scene, GetMousePosition());
-    SceneUIRectangle *rect = scene_get_ui_rectangle(scene, button);
-    if (rect != NULL) {
-        rect->color = hovered == button ? SKYBLUE : BLUE;
-    }
-    if (hovered == button && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        *current = SCENE_ID_DEMO;
-    }
-}
-
-/* Clicks on the UI shouldn't reach the game. */
-static bool mouse_over_ui(const SceneData *scene) {
-    return scene_ui_element_at(scene, GetMousePosition()) >= 0;
-}
-```
+`scene_draw_ui_text(font, text, rect, font_size, spacing, align_h, align_v, color)` draws
+any text aligned inside a rectangle, with lines split at `'\n'`. Sizes are in pixels, as
+`DrawTextEx` takes them. It doesn't clip or wrap.

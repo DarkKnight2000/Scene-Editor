@@ -104,7 +104,6 @@ json projectJson(const Project& project) {
              {{"width", project.display.width},
               {"height", project.display.height},
               {"scaleMode", scaleModeName(project.display.scaleMode)}}},
-            {"easyMemoryDir", project.easyMemoryDir},
             {"export", exportJson(project.exportSettings)},
             {"physics",
              {{"enabled", project.physics.enabled},
@@ -139,21 +138,12 @@ int ExportSettings::modeCount() const {
     return static_cast<int>(std::count(std::begin(scaleModes), std::end(scaleModes), true));
 }
 
-std::string Project::defaultEasyMemoryDir() {
-    return SCENE_EDITOR_EASY_MEMORY_DIR;
-}
-
 std::string Project::defaultBox2dDir() {
     return SCENE_EDITOR_BOX2D_DIR;
 }
 
 std::filesystem::path Project::box2dPath() const {
     const std::filesystem::path dir = fromUtf8(box2dDir);
-    return dir.is_absolute() ? dir : (root() / dir).lexically_normal();
-}
-
-std::filesystem::path Project::easyMemoryPath() const {
-    const std::filesystem::path dir = fromUtf8(easyMemoryDir);
     return dir.is_absolute() ? dir : (root() / dir).lexically_normal();
 }
 
@@ -226,9 +216,6 @@ bool loadProject(const std::filesystem::path& path, Project& project, std::strin
                 loaded.display.scaleMode = candidate;
             }
         }
-    }
-    if (const auto dir = j.find("easyMemoryDir"); dir != j.end() && dir->is_string() && !dir->get<std::string>().empty()) {
-        loaded.easyMemoryDir = dir->get<std::string>();
     }
     if (const auto e = j.find("export"); e != j.end() && e->is_object()) {
         ExportSettings& settings = loaded.exportSettings;
