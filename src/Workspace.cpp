@@ -169,7 +169,9 @@ void Workspace::drawToolbar(Rectangle bar) {
         const Rectangle frame{x, bar.y + 3.0f, width, bar.height - 6.0f};
         DrawRectangleRec(frame, ui::styleColor(BACKGROUND_COLOR));
         DrawRectangleLinesEx(frame, 1.0f, ui::styleColor(LINE_COLOR));
-        ui::label({x + kGroupPadding, bar.y, textWidth(caption) + 4.0f, bar.height}, caption,
+        // ui::label indents its text 6 px: start the box that much earlier so the caption
+        // stays at kGroupPadding and isn't clipped on the right.
+        ui::label({x + kGroupPadding - 6.0f, bar.y, textWidth(caption) + 10.0f, bar.height}, caption,
                   ui::styleColor(TEXT_COLOR_DISABLED));
         return x + kGroupPadding + textWidth(caption) + 10.0f;
     };
