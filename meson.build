@@ -1,7 +1,7 @@
 project(
   'SceneEditor',
   'c', 'cpp',
-  version : '0.1.0',
+  version : '0.1',
   meson_version : '>=1.1.0',
   default_options : [
     'cpp_std=c++20',
@@ -44,6 +44,11 @@ paths_conf = configuration_data()
 paths_conf.set_quoted('SCENE_EDITOR_BOX2D_DIR', (meson.current_source_dir() / 'external/box2d').replace('\\', '/'))
 configure_file(output : 'EditorPaths.h', configuration : paths_conf)
 
+# The editor's version (--version), from project() above.
+version_conf = configuration_data()
+version_conf.set_quoted('SCENE_EDITOR_VERSION', meson.project_version())
+configure_file(output : 'EditorVersion.h', configuration : version_conf)
+
 app_link_args = []
 if host_machine.system() == 'windows'
   # GUI subsystem (no console window) while keeping a portable main().
@@ -54,6 +59,7 @@ executable(
   'SceneEditor',
   files(
     'src/main.cpp',
+    'src/Console.cpp',
     'src/EditorConfig.cpp',
     'src/EditorLayout.cpp',
     'src/GameRunner.cpp',
@@ -64,6 +70,7 @@ executable(
     'src/Log.cpp',
     'src/LogsPanel.cpp',
     'src/Project.cpp',
+    'src/ProjectExport.cpp',
     'src/ProjectLauncher.cpp',
     'src/Scene.cpp',
     'src/SceneExporter.cpp',

@@ -2,15 +2,20 @@
 #include <raygui.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
+#include "Console.h"
 #include "EditorConfig.h"
 #include "EditorLayout.h"
+#include "EditorVersion.h"
 #include "Log.h"
 #include "LogsPanel.h"
 #include "Project.h"
+#include "ProjectExport.h"
 #include "ProjectLauncher.h"
 #include "SceneView.h"
 #include "Widgets.h"
@@ -23,6 +28,61 @@ constexpr int kLauncherWidth = 900;
 constexpr int kLauncherHeight = 580;
 constexpr int kEditorMinWidth = 1024; // below this the three panels get too cramped
 constexpr int kEditorMinHeight = 600;
+
+// Command line: at most one option.
+struct Options {
+    enum class Mode { Editor, Open, Export, Version, Help, Invalid } mode = Mode::Editor;
+    std::filesystem::path project; // --open / --export
+    std::string error;             // Invalid: what's wrong
+};
+
+constexpr const char* kUsage = "Usage: SceneEditor [option]\n"
+                               "  (no option)          open the editor: the last project, or the project launcher\n"
+                               "  --open <project>     open the editor on a project (its .sceneproj file or folder)\n"
+                               "  --export <project>   export a project without opening the editor\n"
+                               "  --version            print the version\n"
+                               "  --help               print this help\n";
+
+Options parseOptions(int argc, char** argv) {
+    Options options;
+    if (argc < 2) {
+        return options;
+    }
+    const std::string_view option = argv[1];
+    const bool takesProject = option == "--open" || option == "--export";
+    if (option == "--version" || option == "--help") {
+        options.mode = option == "--version" ? Options::Mode::Version : Options::Mode::Help;
+    } else if (takesProject && argc >= 3) {
+        options.mode = option == "--open" ? Options::Mode::Open : Options::Mode::Export;
+        options.project = argv[2];
+    } else if (takesProject) {
+        options.mode = Options::Mode::Invalid;
+        options.error = std::string(option) + " needs a project (its .sceneproj file or folder)";
+        return options;
+    } else {
+        options.mode = Options::Mode::Invalid;
+        options.error = "unknown option " + std::string(option);
+        return options;
+    }
+    const int expected = takesProject ? 3 : 2;
+    if (argc > expected) {
+        options.mode = Options::Mode::Invalid;
+        options.error = "unexpected " + std::string(argv[expected]) + " (only one option at a time)";
+    }
+    return options;
+}
+
+// --export: exports without a window, printing the log. Returns the exit code.
+int exportFromCommandLine(const std::filesystem::path& path) {
+    setLogToConsole(true);
+    Project project;
+    std::string error;
+    if (!loadProject(path, project, error)) {
+        logError("Can't open the project: " + error);
+        return 1;
+    }
+    return exportProject(project) ? 0 : 1;
+}
 
 void applyDarkStyle() {
     struct Entry {
@@ -243,7 +303,20 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
 }
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const Options options = parseOptions(argc, argv);
+    if (options.mode != Options::Mode::Editor) {
+        attachParentConsole();
+    }
+    switch (options.mode) {
+    case Options::Mode::Version: std::printf("Scene Editor %s\n", SCENE_EDITOR_VERSION); return 0;
+    case Options::Mode::Help: std::printf("%s", kUsage); return 0;
+    case Options::Mode::Invalid: std::fprintf(stderr, "SceneEditor: %s\n%s", options.error.c_str(), kUsage); return 2;
+    case Options::Mode::Export: return exportFromCommandLine(options.project);
+    case Options::Mode::Editor:
+    case Options::Mode::Open: break;
+    }
+
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(kLauncherWidth, kLauncherHeight, "Scene Editor");
     SetExitKey(KEY_NULL); // Esc shouldn't close the editor; use Alt+F4
@@ -258,9 +331,19 @@ int main() {
     }
     logInfo("Editor config: " + configFile.string());
 
-    // Reopen the project that was open when the editor was last closed, if any.
+    // --open: that project. Otherwise reopen the project that was open when the editor was
+    // last closed, if any.
     std::optional<Project> project;
-    if (!config.lastProject.empty()) {
+    if (options.mode == Options::Mode::Open) {
+        Project opened;
+        if (loadProject(options.project, opened, error)) {
+            project = opened;
+        } else {
+            const std::string message = "Can't open the project: " + error;
+            std::fprintf(stderr, "SceneEditor: %s\n", message.c_str());
+            logError(message);
+        }
+    } else if (!config.lastProject.empty()) {
         Project last;
         if (loadProject(config.lastProject, last, error)) {
             project = last;

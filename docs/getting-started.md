@@ -28,6 +28,35 @@ export/
   any header can be included by its name alone: `#include "scenes.h"` gives you
   everything.
 
+## Command line
+
+| Command | What it does |
+|---|---|
+| `SceneEditor` | opens the editor: the project open last time, or the project launcher |
+| `SceneEditor --open <project>` | opens the editor on a project: its `.sceneproj` file or its folder |
+| `SceneEditor --export <project>` | exports a project without opening the editor, like **Export** |
+| `SceneEditor --version` | prints the version |
+| `SceneEditor --help` | prints the options |
+
+`--export` prints the same messages as the Logs panel, with warnings and errors on
+stderr. It exits with 0 when the export can be built and 1 when it can't. Bad options exit
+with 2. It saves nothing in the editor's own settings, and a scene left unsaved in an open
+editor isn't included, because only saved scene files are read.
+
+**Exporting from a script:**
+
+```bash
+SceneEditor --export path/to/MyGame && make -C path/to/MyGame/export release
+```
+
+On Windows the editor is a windowed program, so `cmd` and PowerShell don't wait for it:
+the prompt can come back before its output. In scripts there:
+
+- **cmd:** use `start /wait "" SceneEditor --export MyGame`.
+- **PowerShell:** pipe the output, e.g. `SceneEditor --export MyGame | Write-Output`.
+
+Git Bash and MSYS shells wait as usual.
+
 ## Export options
 
 **Project Settings** has an Export section.

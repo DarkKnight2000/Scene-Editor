@@ -23,3 +23,7 @@ void clearLog();
 
 // Increases whenever an entry is added; lets views notice new messages.
 std::size_t logRevision();
+
+// Also print every new entry, without its time: info to stdout, warnings and errors to
+// stderr. For command-line use (e.g. --export).
+void setLogToConsole(bool enabled);
