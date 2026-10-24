@@ -24,7 +24,8 @@ std::filesystem::path projectExportDir(const Project& project) {
 }
 
 bool exportProject(const Project& project,
-                   const std::function<const Scene*(const std::filesystem::path& file)>& openScene) {
+                   const std::function<const Scene*(const std::filesystem::path& file)>& openScene,
+                   std::vector<ExportedScene>* exported) {
     const std::filesystem::path outDir = projectExportDir(project);
 
     // Files you may edit by hand, and when Project Settings says to write them.
@@ -70,7 +71,6 @@ bool exportProject(const Project& project,
     }
     std::sort(files.begin(), files.end());
 
-    std::vector<std::string> exported;
     std::vector<ExportedScene> scenes;
     std::vector<std::string> identifiers;
     int failed = 0;
@@ -107,19 +107,17 @@ bool exportProject(const Project& project,
             ++failed;
             continue;
         }
-        exported.push_back(name);
         identifiers.push_back(id);
-        logInfo("Exported " + id + ".h/.c  (" + info.type + ", scene_" + id + "_init / _draw, SCENE_ID_" +
-                upperId(id) + ")");
+        logInfo("Exported " + id + ".h/.c  (" + info.type + ", SCENE_ID_" + upperId(id) + ")");
         scenes.push_back(std::move(info));
     }
 
     std::string error;
-    bool usable = !exported.empty();
+    bool usable = !scenes.empty();
     if (usable && !(writeSceneCommon(outDir, project.display, options, project.physics, error) &&
-                    writeScenesHeader(exported, outDir, error) && writeSceneManager(scenes, outDir, error) &&
-                    (!editable[1].write || writeProjectMain(project.name, scenes, outDir, error)) &&
-                    (!editable[0].write || writeMakefile(project.name, exported, options.modeCount(), outDir, error)) &&
+                    writeSceneManager(scenes, outDir, error) &&
+                    (!editable[1].write || writeProjectMain(project.name, outDir, error)) &&
+                    (!editable[0].write || writeMakefile(project.name, outDir, error)) &&
                     (!editable[2].write || writeVSCodeFiles(outDir, project.name, error)) &&
                     (!editable[3].write || writeGitignore(outDir, project.name, error)))) {
         logError("Export: " + error);
@@ -137,8 +135,11 @@ bool exportProject(const Project& project,
     if (files.empty()) {
         logWarning("Export: the project has no saved scenes yet");
     } else {
-        logInfo("Export finished: " + std::to_string(exported.size()) + " scene(s) to " + outDir.string() +
+        logInfo("Export finished: " + std::to_string(scenes.size()) + " scene(s) to " + outDir.string() +
                 (failed > 0 ? " (" + std::to_string(failed) + " failed)" : ""));
+    }
+    if (exported != nullptr) {
+        *exported = std::move(scenes);
     }
     return usable;
 }

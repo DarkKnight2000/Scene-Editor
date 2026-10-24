@@ -9,7 +9,7 @@ The project is written to `<project>/export/`:
 export/
   Makefile
   src/           project_main.c (an example main) and your own .c files
-  generated/     one .h/.c per scene (its struct and functions), scenes.h, scene_manager.h/.c
+  generated/     one .h/.c per scene (its struct and functions), scene_manager.h/.c
   utils/         scene_common.h/.c (scaling, the shared types, drawing helpers)
   box2d/         Box2D, when physics is on (see Physics)
   .vscode/       c_cpp_properties.json (IntelliSense)
@@ -25,7 +25,7 @@ export/
   shown in the editor but left out of the C code, for guides and placeholders. Its entity
   and other components are still exported.
 - **Include paths:** `src/`, `generated/` and `utils/` are all include directories, so
-  any header can be included by its name alone: `#include "scenes.h"` gives you
+  any header can be included by its name alone: `#include "scene_manager.h"` gives you
   everything.
 
 ## Command line
@@ -46,7 +46,7 @@ editor isn't included, because only saved scene files are read.
 **Exporting from a script:**
 
 ```bash
-SceneEditor --export path/to/MyGame && make -C path/to/MyGame/export release
+SceneEditor --export path/to/MyGame && make -C path/to/MyGame/export
 ```
 
 On Windows the editor is a windowed program, so `cmd` and PowerShell don't wait for it:
@@ -86,14 +86,13 @@ The Makefile needs GNU make (on Windows, for example, `mingw32-make`) and a C11 
 The code is C11 because Box2D's headers need it; with physics off, it also builds as C99.
 
 ```bash
-make release RAYLIB_SRC=path/to/raylib/src
+make RAYLIB_SRC=path/to/raylib/src
 ```
 
 | Target | What it does |
 |---|---|
-| `make` / `make release` | builds `bin/<project>` without test code |
-| `make run` | builds the release and runs it fullscreen (`ARGS=--windowed` for a window) |
-| `make test` | strict build with `-DSCENE_TESTS -Werror`, then a smoke test of every scene |
+| `make` | builds `bin/<project>` |
+| `make run` | builds and runs it |
 | `make clean` | deletes `bin/` |
 
 **Telling it where raylib is** (pick one):
@@ -116,53 +115,26 @@ link a library built for MSVC, and the other way round: errors like
 - **`EXCLUDE`:** source files to leave out, e.g. `EXCLUDE=src/project_main.c` when your
   game has its own `main()`.
 
-Builds are incremental: object and dependency files go to `bin/release/` and `bin/test/`,
-and only what changed is recompiled. After changing `CFLAGS` or the compiler, run
-`make clean`.
+Builds are incremental: object and dependency files go to `bin/obj/`, and only what changed
+is recompiled. After changing `CFLAGS` or the compiler, run `make clean`.
 
 Make also reads these variables from the environment. Setting `RAYLIB_SRC` (or
 `RAYLIB_INCLUDE`) once in your environment works for both `make` and VS Code.
 
 ## Your own main()
 
-`src/project_main.c` is a complete example: borderless fullscreen, a SceneManager, scene
-switching, a label whose text changes, your own text drawn in a UI element's rect, and
-collider outlines. Read it, then either:
-
-- **Start from it:** copy it to your own file in `src/` and build with
-  `EXCLUDE=src/project_main.c`, because the export rewrites `project_main.c`.
-- **Use your own main():** the [README](README.md#the-shortest-working-program) has the
-  smallest one, and [Scenes](scenes.md) shows one with a SceneManager.
+`src/project_main.c` is a minimal program: a resizable window, a SceneManager, Left / Right
+to switch scenes, and comments where your own drawing goes. The [README](README.md#a-whole-program)
+shows it. Either edit a copy of it (in your own file in `src/`, built with
+`EXCLUDE=src/project_main.c`, because the export rewrites `project_main.c`) or write your
+own.
 
 Every call that touches raylib (initialising scenes, drawing) must come after
 `InitWindow()`.
 
-## The example's controls
-
-| Key | Action |
-|---|---|
-| Left / Right | previous / next scene |
-| M | cycle the scale mode |
-| C | show or hide box colliders |
-| Space | with physics: make a dynamic body called "Player" jump |
-| R | reload the scene from its exported data |
-| F11 / Alt+Enter | toggle fullscreen |
-| Esc | quit |
-
 ## VS Code
 
-The export includes `.vscode/c_cpp_properties.json` for the C/C++ extension. It sets
-the include folders and the defines for two configurations:
-
-- **Release**
-- **Test**, which defines `SCENE_TESTS` so the test code isn't greyed out.
-
-`raylib.h` is found through the `RAYLIB_INCLUDE` or `RAYLIB_SRC` environment variable,
-so set one of them before starting VS Code. To customise the file, set **.vscode
-settings** to *Only if missing* in the [export options](#export-options).
-
-## Tests
-
-`make test` builds with `-DSCENE_TESTS` and strict warnings (`-Wpedantic -Werror`), then
-runs `bin/<project>_test --frames N`, which draws every scene in every scale mode and
-exits. Release builds contain none of this code.
+The export includes `.vscode/c_cpp_properties.json` for the C/C++ extension, with the
+include folders. `raylib.h` is found through the `RAYLIB_INCLUDE` or `RAYLIB_SRC`
+environment variable, so set one of them before starting VS Code. To customise the file,
+set **.vscode settings** to *Only if missing* in the [export options](#export-options).

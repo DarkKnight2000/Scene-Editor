@@ -39,13 +39,13 @@ Expand-only export, doesn't compile. To write code that works with any export, u
 ## Drawing with a mode
 
 ```c
-static void draw_frame(DemoScene *demo, SceneScaleMode mode) {
+static void draw_frame(HudScene *hud, SceneScaleMode mode) {
     BeginDrawing();
     ClearBackground(BLACK);
-    scene_begin(mode);      /* camera: scene origin at the window centre, scaled for `mode` */
-    scene_demo_draw(demo);  /* and anything else you draw here, in scene coordinates */
-    scene_end();            /* with Fit, also draws the black bars */
-    scene_demo_draw_ui(demo, mode);
+    scene_begin(mode);     /* camera: scene origin at the window centre, scaled for `mode` */
+    scene_hud_draw(hud);   /* and anything else you draw here, in scene coordinates */
+    scene_end();           /* with Fit, also draws the black bars */
+    scene_hud_draw_ui(hud, mode);
     EndDrawing();
 }
 ```

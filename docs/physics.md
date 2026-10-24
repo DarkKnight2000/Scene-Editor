@@ -43,129 +43,67 @@ that's roughly 6 to 640 pixels.
 
 ## Bodies in the exported scene
 
-`scene_<name>_init` creates the scene's Box2D world (`s->physics_world`) and a body for
-every entity with a rigidbody or a box collider, at its place in the scene. Each body is
-in that entity's `body` field:
+`scene_<name>_init` creates the scene's Box2D world (`physics_world`) and a body for every
+entity with a rigidbody or a box collider, at its place in the scene. Each body is in that
+entity's `body` field. Bodies and shapes carry their `SceneEntity *` as user data, so Box2D
+events and queries lead back to the entity.
 
-```c
-SceneEntity *player = &level.player;
-b2BodyId body = player->body; /* b2_nullBodyId for entities without one */
-```
+**Each frame**, `scene_<name>_step(s, dt)` (or `scene_manager_update`) runs fixed 1/60 s
+steps for the time that passed, then writes dynamic and kinematic bodies back into their
+entities' transforms, parents first.
 
-- **User data:** bodies and shapes carry their `SceneEntity *` as user data, so Box2D
-  events and queries lead back to the entity.
-- **Colliders:** the collider's values are in `entity.collider` too, so you can read the
-  box in scene coordinates with `scene_box()` (see [Entities](entities.md#boxes-collider-and-sprite-areas-in-the-scene)).
-- **Freeing:** `scene_<name>_deinit` destroys the world and every body in it.
+**Freeing:** `scene_<name>_deinit` (or `scene_manager_deinit`) destroys the world and every
+body in it.
 
-## Running the simulation
+Physics happens in the World's own space, so moving the World transform (for example for
+screen shake) moves the picture, not the bodies.
 
-Scenes with bodies have `scene_<name>_step(s, dt)`. The
-[SceneManager](scenes.md#the-scenemanager) calls it for the current scene in
-`scene_manager_update`, which `project_main.c` calls every frame:
+## Moving bodies
 
-```c
-static void frame(SceneManager *manager, SceneScaleMode mode) {
-    scene_manager_update(manager, GetFrameTime()); /* physics of the current scene */
-    BeginDrawing();
-    ClearBackground(BLACK);
-    scene_begin(mode);
-    scene_manager_draw(manager);
-    scene_end();
-    scene_manager_draw_ui(manager, mode);
-    EndDrawing();
-}
-```
-
-**What a step does:**
-
-1. **Fixed steps:** it runs as many fixed steps as the elapsed time needs
-   (`SCENE_PHYSICS_TIME_STEP`, 1/60 s, with 4 substeps), so the simulation doesn't depend
-   on the frame rate.
-2. **Write-back:** it writes dynamic and kinematic bodies back into their entities'
-   transforms, parents before children. The next `update_poses` / `draw` turns them into
-   poses.
-
-Physics happens in the World's own space. So moving the World transform (for example
-for screen shake) moves the picture, not the bodies.
-
-## Moving bodies from code
-
-Move bodies through Box2D: changing an entity's transform doesn't move its body (the
-next step writes the body's place back). These helpers work in scene units and convert
-to Box2D's metres:
+Use the Box2D API on `entity.body`. Box2D works in metres: `scene_to_meters` and
+`scene_to_scene_units` convert from and to scene units.
 
 ```c
 static void player_controls(SceneEntity *player) {
-    Vector2 velocity = scene_get_velocity(player); /* scene units per second */
-
+    b2Vec2 velocity = b2Body_GetLinearVelocity(player->body); /* metres per second */
     velocity.x = 0.0f;
-    if (IsKeyDown(KEY_LEFT)) velocity.x = -300.0f;
-    if (IsKeyDown(KEY_RIGHT)) velocity.x = 300.0f;
-    if (IsKeyPressed(KEY_SPACE)) velocity.y = -6.0f * SCENE_PIXELS_PER_METER; /* jump */
-    scene_set_velocity(player, velocity);
+    if (IsKeyDown(KEY_LEFT)) velocity.x = -5.0f;
+    if (IsKeyDown(KEY_RIGHT)) velocity.x = 5.0f;
+    if (IsKeyPressed(KEY_SPACE)) velocity.y = -6.0f; /* jump: y points down */
+    b2Body_SetLinearVelocity(player->body, velocity);
 }
 
-static void explode(SceneEntity *crate) {
-    /* kg * scene units per second: mass matters, unlike with set_velocity */
-    scene_apply_impulse(crate, (Vector2){0.0f, -2000.0f});
-}
-
-static void teleport(SceneEntity *e) {
-    b2Body_SetTransform(e->body, scene_to_meters((Vector2){0.0f, -200.0f}), b2Body_GetRotation(e->body));
+static void teleport(SceneEntity *e, Vector2 to) {
+    b2Body_SetTransform(e->body, scene_to_meters(to), b2Body_GetRotation(e->body));
 }
 ```
 
-`scene_apply_force` pushes for one step, so call it every frame for a steady push.
+Changing an entity's transform doesn't move its body: the next step writes the body's place
+back into the transform.
 
 ## Triggers and contacts
 
-Use Box2D's events after a step. Shapes carry their `SceneEntity *`, so compare with your
+Read Box2D's events after a step. Shapes carry their `SceneEntity *`, so compare with your
 scene's fields:
 
 ```c
-static int coins;
-
-static void collect_coins(LevelScene *level) {
+static void collect_coin(LevelScene *level) {
     const b2SensorEvents events = b2World_GetSensorEvents(level->physics_world);
     int i;
     for (i = 0; i < events.beginCount; ++i) {
-        SceneEntity *trigger = (SceneEntity *)b2Shape_GetUserData(events.beginEvents[i].sensorShapeId);
-        SceneEntity *visitor = (SceneEntity *)b2Shape_GetUserData(events.beginEvents[i].visitorShapeId);
-        if (trigger == &level->coin && visitor == &level->player && level->coin.visible) {
-            ++coins;
+        SceneEntity *trigger = b2Shape_GetUserData(events.beginEvents[i].sensorShapeId);
+        SceneEntity *visitor = b2Shape_GetUserData(events.beginEvents[i].visitorShapeId);
+        if (trigger == &level->coin && visitor == &level->player) {
             level->coin.visible = false;
-            b2Body_Disable(level->coin.body); /* gone from the simulation */
+            b2Body_Disable(level->coin.body);
         }
     }
 }
 ```
 
-Contacts between solid colliders work the same with `b2World_GetContactEvents`.
-
-**Several steps per frame:** Box2D keeps the events of the last fixed step only. When a
-frame runs more than one step (a slow frame), earlier steps' events are gone by the time
-you read them.
-
-## Using Box2D directly
-
-`entity.body` and `s->physics_world` give you the whole Box2D API: joints, ray casts,
-more shapes. Box2D itself works in **metres**: `scene_to_meters` and
-`scene_to_scene_units` convert.
-
-```c
-static void spin(SceneEntity *e) {
-    b2Body_SetAngularVelocity(e->body, 3.0f); /* radians per second */
-}
-
-static bool ground_below(LevelScene *level) {
-    /* Bodies live in the World's own space: with a moved World, undo its transform first. */
-    const b2Vec2 origin = scene_to_meters(level->player.pose.position);
-    const b2Vec2 down = {0.0f, 1.0f}; /* one metre down (y points down) */
-    const b2RayResult hit = b2World_CastRayClosest(level->physics_world, origin, down, b2DefaultQueryFilter());
-    return hit.hit;
-}
-```
+Contacts between solid colliders work the same with `b2World_GetContactEvents`. Box2D keeps
+the events of the last fixed step only, so when a slow frame runs several steps, earlier
+steps' events are gone by the time you read them.
 
 ## Building
 

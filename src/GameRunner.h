@@ -25,7 +25,7 @@ std::vector<std::string> playMakeVariables(const PlaySettings& resolved);
 
 class ChildProcess;
 
-// The Play button: builds an exported project with its Makefile ("make release") and runs
+// The Play button: builds an exported project with its Makefile ("make") and runs
 // the game, without blocking the editor. Build and game output go to the Logs panel.
 class GameRunner {
 public:
@@ -37,7 +37,7 @@ public:
     void setSettings(PlaySettings settings) { m_settings = std::move(settings); }
     const PlaySettings& settings() const { return m_settings; }
 
-    // Runs "make release" in exportDir, then `executable` once the build succeeds. Stops a
+    // Runs "make" in exportDir, then `executable` once the build succeeds. Stops a
     // game that is still running first (its executable is about to be replaced).
     void play(const std::filesystem::path& exportDir, const std::filesystem::path& executable);
     void stop();

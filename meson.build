@@ -55,10 +55,10 @@ if host_machine.system() == 'windows'
   app_link_args += '-Wl,/ENTRY:mainCRTStartup'
 endif
 
-executable(
-  'SceneEditor',
+# Everything but main(), shared by the editor and the internal debug exporter.
+editor_lib = static_library(
+  'editor',
   files(
-    'src/main.cpp',
     'src/Console.cpp',
     'src/EditorConfig.cpp',
     'src/EditorLayout.cpp',
@@ -80,6 +80,24 @@ executable(
     'src/Workspace.cpp',
   ),
   dependencies : [raygui_dep, entt_dep, json_dep],
+)
+
+executable(
+  'SceneEditor',
+  'src/main.cpp',
+  link_with : editor_lib,
+  dependencies : [raygui_dep, entt_dep, json_dep],
   link_args : app_link_args,
   win_subsystem : 'windows',
+)
+
+# Internal, not for users: exports a project and adds debug-only checks to it (debug/), for
+# testing the exporter. Build it with: meson compile -C build SceneDebugExport
+executable(
+  'SceneDebugExport',
+  'tools/DebugExporter.cpp',
+  link_with : editor_lib,
+  include_directories : include_directories('src'),
+  dependencies : [raygui_dep, entt_dep, json_dep],
+  build_by_default : false,
 )

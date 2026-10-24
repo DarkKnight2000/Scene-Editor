@@ -300,7 +300,7 @@ void GameRunner::play(const std::filesystem::path& exportDir, const std::filesys
     m_executable = executable;
 
     const PlaySettings resolved = resolvePlaySettings(m_settings);
-    std::string command = quote(resolved.make) + " release";
+    std::string command = quote(resolved.make);
     for (const std::string& variable : playMakeVariables(resolved)) {
         command += " " + quote(variable);
     }
@@ -312,7 +312,7 @@ void GameRunner::play(const std::filesystem::path& exportDir, const std::filesys
         m_state = State::Idle;
         return;
     }
-    logInfo("Play: building " + m_executable.stem().string() + " (make release)...");
+    logInfo("Play: building " + m_executable.stem().string() + " (make)...");
     m_process = std::move(process);
     m_state = State::Building;
 }
