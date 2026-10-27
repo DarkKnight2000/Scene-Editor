@@ -57,6 +57,36 @@ int main(void) {
 The guides in [docs/](docs/README.md) cover the exported code: scenes, entities, UI,
 scaling, physics and the full API.
 
+## Drawing your own things
+
+The editor does the placement maths; your game does the drawing. Each entity and UI
+element you named in the editor is a field of its scene, holding where it ended up.
+
+**In the world** (between `scene_begin` and `scene_end`), use an entity's `pose`, or
+`scene_box()` for the box of its collider:
+
+```c
+const ScenePose p = scenes.level.player.pose;
+DrawTextureEx(player_tex, p.position, p.rotation, 1.0f, WHITE);
+
+const SceneBox b = scene_box(scenes.level.ground.pose, scenes.level.ground.collider.offset,
+                             scenes.level.ground.collider.size);
+DrawRectanglePro((Rectangle){b.center.x, b.center.y, b.size.x, b.size.y},
+                 (Vector2){b.size.x / 2.0f, b.size.y / 2.0f}, b.rotation, BROWN);
+```
+
+**On the screen** (after `scene_manager_draw_ui`), use a UI element's `rect`, already in
+window pixels for the current window size. Multiply your own sizes by `ui_scale` so they
+scale with it:
+
+```c
+const Rectangle r = scenes.hud.health_bar.rect;
+DrawRectangleRec((Rectangle){r.x, r.y, r.width * health, r.height}, GREEN);
+DrawText("HP", (int)r.x, (int)(r.y - 24.0f * scenes.hud.ui_scale), (int)(20.0f * scenes.hud.ui_scale), WHITE);
+```
+
+See [Entities](docs/entities.md) and [UI](docs/ui.md) for more.
+
 ## Building the editor
 
 The editor is C++20, built with [Meson](https://mesonbuild.com/). It needs a raylib
