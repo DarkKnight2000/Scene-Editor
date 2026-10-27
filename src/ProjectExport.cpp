@@ -114,7 +114,7 @@ bool exportProject(const Project& project,
 
     std::string error;
     bool usable = !scenes.empty();
-    if (usable && !(writeSceneCommon(outDir, project.display, options, project.physics, error) &&
+    if (usable && !(writeSceneCommon(outDir, project.display, project.physics, error) &&
                     writeSceneManager(scenes, outDir, startScene, error) &&
                     (!editable[1].write || writeProjectMain(project.name, outDir, error)) &&
                     (!editable[0].write || writeMakefile(project.name, outDir, error)) &&

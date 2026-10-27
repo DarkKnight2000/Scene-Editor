@@ -27,7 +27,6 @@ placements and draws its own things there, and the scene scales to any window.
 
 int main(void) {
     static SceneManager scenes;
-    const SceneScaleMode mode = SCENE_DEFAULT_SCALE_MODE;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow((int)SCENE_DESIGN_WIDTH, (int)SCENE_DESIGN_HEIGHT, "My game");
@@ -39,11 +38,11 @@ int main(void) {
 
         BeginDrawing();
         ClearBackground(BLACK);
-        scene_begin(mode);                /* scene coordinates, scaled to the window */
+        scene_begin();                    /* scene coordinates, scaled to the window */
         scene_manager_draw(&scenes);
         DrawCircleV(scenes.demo.sun.pose.position, 20.0f, YELLOW); /* your own drawing */
         scene_end();
-        scene_manager_draw_ui(&scenes, mode); /* the UI, in window pixels */
+        scene_manager_draw_ui(&scenes);   /* the UI, in window pixels */
         EndDrawing();
     }
 

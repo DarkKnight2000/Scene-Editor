@@ -5,7 +5,7 @@
 #include <vector>
 
 // How the game maps its design resolution onto the player's screen. The scene origin is
-// always at the screen centre.
+// always at the screen centre. The exported game has only the project's mode.
 //   Expand: the whole design area is visible; a wider or taller screen shows more of the
 //           scene on that side (no bars).
 //   Fit:    the whole design area is visible, letterboxed with bars on the extra sides.
@@ -39,17 +39,10 @@ struct PhysicsSettings {
 };
 
 struct ExportSettings {
-    // Scale modes the exported runtime supports, indexed like kScaleModes. Only their code is
-    // exported. The project's default scale mode is always included.
-    bool scaleModes[3] = {true, true, true};
     ExportPolicy makefile = ExportPolicy::Always;
     ExportPolicy projectMain = ExportPolicy::Always;    // src/project_main.c
     ExportPolicy vscodeSettings = ExportPolicy::Always; // .vscode/c_cpp_properties.json
     ExportPolicy gitignore = ExportPolicy::Always;
-
-    // Makes sure `defaultMode` is one of the exported modes.
-    void includeMode(ScaleMode defaultMode);
-    int modeCount() const;
 };
 
 // A project is a folder holding a project file and the project's scenes:

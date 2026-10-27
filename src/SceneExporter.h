@@ -32,7 +32,7 @@
 //                         struct and the current SceneId; scene_manager_init / _update /
 //                         _draw / _draw_ui / _deinit
 //   scene_common.h / .c   the shared types, pose and UI layout maths, sprite and text
-//                         drawing, Box2D helpers, and scene_begin(mode) / scene_end()
+//                         drawing, Box2D helpers, and scene_begin() / scene_end()
 //
 // Debug-only code (smoke tests, collider outlines) isn't part of the export: the internal
 // SceneDebugExport tool (tools/) adds it for checking the exporter.
@@ -79,12 +79,11 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
                  ExportedScene& info, std::string& error);
 
 // Writes <outDir>/utils/scene_common.h and .c, the code shared by every exported scene.
-// The project's design resolution is baked in (SCENE_DESIGN_WIDTH/HEIGHT); its scale
-// mode is only exported as a suggested default (SCENE_DEFAULT_SCALE_MODE).
-// Only the scale modes chosen in `options` are exported, with only their code.
-// With physics enabled, the runtime includes Box2D (SCENE_PHYSICS 1).
+// The project's design resolution (SCENE_DESIGN_WIDTH/HEIGHT) and scale mode are baked in:
+// only that mode's code is exported. With physics enabled, the runtime includes Box2D
+// (SCENE_PHYSICS 1).
 bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display,
-                      const ExportSettings& options, const PhysicsSettings& physics, std::string& error);
+                      const PhysicsSettings& physics, std::string& error);
 
 // Writes <outDir>/generated/scene_manager.h and .c: the SceneId enum and the SceneManager, in the
 // order given, and SCENE_ID_START, the scene the game starts in: `startScene` (a scene name),

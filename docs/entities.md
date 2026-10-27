@@ -46,11 +46,11 @@ level.world.position = (Vector2){(float)GetRandomValue(-4, 4), 0.0f}; /* screen 
 
 ## Drawing your own things
 
-Between `scene_begin(mode)` and `scene_end()`, raylib draws in scene coordinates, so
+Between `scene_begin()` and `scene_end()`, raylib draws in scene coordinates, so
 anything drawn at an entity's pose lands where the editor shows it, at any window size:
 
 ```c
-scene_begin(mode);
+scene_begin();
 scene_level_draw(&level);
 DrawTexturePro(sheet, frames[frame], (Rectangle){level.player.pose.position.x, level.player.pose.position.y, 48.0f, 48.0f},
                (Vector2){24.0f, 24.0f}, level.player.pose.rotation, WHITE);

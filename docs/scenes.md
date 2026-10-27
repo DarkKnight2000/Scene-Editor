@@ -31,8 +31,8 @@ A scene has the functions it needs:
 | `scene_<name>_init(s)` | always | fills in every designed value (and creates the physics bodies), then the poses |
 | `scene_<name>_update_poses(s)` | it has entities | recomputes every entity's `pose`, parents first |
 | `scene_<name>_draw(s)` | it has entities | updates the poses and draws the sprites, between `scene_begin` and `scene_end` |
-| `scene_<name>_update_ui(s, mode)` | it has UI elements | lays out every element's `rect` for the window |
-| `scene_<name>_draw_ui(s, mode)` | it has UI elements | updates the layout and draws the UI rectangles and labels, after `scene_end` |
+| `scene_<name>_update_ui(s)` | it has UI elements | lays out every element's `rect` for the window |
+| `scene_<name>_draw_ui(s)` | it has UI elements | updates the layout and draws the UI rectangles and labels, after `scene_end` |
 | `scene_<name>_step(s, dt)` | it has physics bodies | advances the physics |
 | `scene_<name>_deinit(s)` | it has physics bodies | destroys the physics world |
 
@@ -62,7 +62,7 @@ typedef struct SceneManager {
 | `scene_manager_init(m, first)` | initialises every scene, and shows `first` |
 | `scene_manager_update(m, dt)` | steps the current scene's physics |
 | `scene_manager_draw(m)` | draws the current scene, between `scene_begin` and `scene_end` |
-| `scene_manager_draw_ui(m, mode)` | lays out and draws the current scene's UI, after `scene_end` |
+| `scene_manager_draw_ui(m)` | lays out and draws the current scene's UI, after `scene_end` |
 | `scene_manager_deinit(m)` | frees what the scenes' init created |
 
 - **The first scene:** `SCENE_ID_START` is the scene the game starts in: the first scene

@@ -79,15 +79,6 @@ std::string fill(std::string text, const std::vector<std::pair<std::string, std:
     return text;
 }
 
-const char* scaleModeConstant(ScaleMode mode) {
-    switch (mode) {
-    case ScaleMode::Fit: return "SCENE_SCALE_FIT";
-    case ScaleMode::Fill: return "SCENE_SCALE_FILL";
-    case ScaleMode::Expand: break;
-    }
-    return "SCENE_SCALE_EXPAND";
-}
-
 const char* alignConstant(TextAlign align) {
     switch (align) {
     case TextAlign::Start: return "SCENE_ALIGN_START";
@@ -336,8 +327,8 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
               << "void " << prefix << "_draw(" << type << " *s);\n";
     }
     if (info.hasUI) {
-        decls << "void " << prefix << "_update_ui(" << type << " *s, SceneScaleMode mode);\n"
-              << "void " << prefix << "_draw_ui(" << type << " *s, SceneScaleMode mode);\n";
+        decls << "void " << prefix << "_update_ui(" << type << " *s);\n"
+              << "void " << prefix << "_draw_ui(" << type << " *s);\n";
     }
     if (info.hasBodies) {
         decls << "void " << prefix << "_step(" << type << " *s, float dt);\n"
@@ -504,8 +495,8 @@ typedef struct {{type}} {
 
     if (info.hasUI) {
         // Layout, parents first; then drawing in the same order.
-        c << "\nvoid " << prefix << "_update_ui(" << type << " *s, SceneScaleMode mode) {\n"
-          << "    s->ui_canvas = scene_ui_canvas(mode);\n"
+        c << "\nvoid " << prefix << "_update_ui(" << type << " *s) {\n"
+          << "    s->ui_canvas = scene_ui_canvas();\n"
           << "    s->ui_scale = scene_ui_scale(s->ui_canvas);\n";
         for (const entt::entity e : ui) {
             const entt::entity p = parentOf(e);
@@ -515,11 +506,11 @@ typedef struct {{type}} {
         }
         c << "}\n";
 
-        c << "\nvoid " << prefix << "_draw_ui(" << type << " *s, SceneScaleMode mode) {\n";
+        c << "\nvoid " << prefix << "_draw_ui(" << type << " *s) {\n";
         if (anyLabel) {
             c << "    const Font font = s->ui_font != NULL ? *s->ui_font : GetFontDefault();\n";
         }
-        c << "    " << prefix << "_update_ui(s, mode);\n";
+        c << "    " << prefix << "_update_ui(s);\n";
         for (const entt::entity e : ui) {
             const bool rect = registry.all_of<UIRectangleComponent>(e);
             const bool label = registry.all_of<UILabelComponent>(e);
@@ -612,7 +603,7 @@ bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::file
             draw << "    case " << constant << ": " << prefix << "_draw(" << member << "); break;\n";
         }
         if (s.hasUI) {
-            drawUI << "    case " << constant << ": " << prefix << "_draw_ui(" << member << ", mode); break;\n";
+            drawUI << "    case " << constant << ": " << prefix << "_draw_ui(" << member << "); break;\n";
         }
     }
     // Switches without cases still need their parameters used.
@@ -630,7 +621,7 @@ bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::file
         {"init", init.str()},
         {"update", body(update, "    (void)m;\n    (void)dt;\n")},
         {"draw", body(draw, "    (void)m;\n")},
-        {"draw_ui", body(drawUI, "    (void)m;\n    (void)mode;\n")},
+        {"draw_ui", body(drawUI, "    (void)m;\n")},
         {"deinit", deinit.str().empty() ? "    (void)m;\n" : deinit.str()},
         {"start", start},
     };
@@ -659,7 +650,7 @@ typedef struct SceneManager {
 void scene_manager_init(SceneManager *m, int first);
 void scene_manager_update(SceneManager *m, float dt); /* physics of the current scene */
 void scene_manager_draw(SceneManager *m);             /* between scene_begin and scene_end */
-void scene_manager_draw_ui(SceneManager *m, SceneScaleMode mode); /* after scene_end */
+void scene_manager_draw_ui(SceneManager *m); /* after scene_end */
 void scene_manager_deinit(SceneManager *m);
 
 #ifdef __cplusplus
@@ -683,7 +674,7 @@ void scene_manager_update(SceneManager *m, float dt) {
 void scene_manager_draw(SceneManager *m) {
 {{draw}}}
 
-void scene_manager_draw_ui(SceneManager *m, SceneScaleMode mode) {
+void scene_manager_draw_ui(SceneManager *m) {
 {{draw_ui}}}
 
 void scene_manager_deinit(SceneManager *m) {
@@ -696,147 +687,96 @@ void scene_manager_deinit(SceneManager *m) {
 }
 
 namespace {
-// The screen-scaling parts of scene_common for the exported scale modes only.
-struct ScalingCode {
-    std::string modeEnum;   // enum entries
-    std::string modeList;   // initialisers of scene_scale_modes[]
-    std::string source;     // scene_camera, scene_begin, scene_end (and Fit's helpers)
-    std::string uiCanvas;   // the start of scene_update_ui: where the canvas is
-};
-
-ScalingCode scalingCode(const ExportSettings& options) {
-    const bool expand = options.scaleModes[0];
-    const bool fit = options.scaleModes[1];
-    const bool fill = options.scaleModes[2];
-    ScalingCode code;
-    const char* const notes[] = {
-        "whole design area visible; extra screen space shows more scene",
-        "whole design area visible; extra space becomes black bars",
-        "window fully covered; the design area is cropped to fit",
-    };
-    const char* const names[] = {"SCENE_SCALE_EXPAND", "SCENE_SCALE_FIT", "SCENE_SCALE_FILL"};
-    for (int i = 0; i < 3; ++i) {
-        if (options.scaleModes[i]) {
-            code.modeEnum += std::string("    ") + names[i] + " = " + std::to_string(i) + ", /* " + notes[i] + " */\n";
-            code.modeList += std::string(code.modeList.empty() ? "" : ", ") + names[i];
-        }
+// What scene_common says about the project's scale mode.
+const char* scaleModeNote(ScaleMode mode) {
+    switch (mode) {
+    case ScaleMode::Fit: return "the whole design area is visible; extra space becomes black bars";
+    case ScaleMode::Fill: return "the window is fully covered; the design area is cropped to fit";
+    case ScaleMode::Expand: break;
     }
+    return "the whole design area is visible; a wider or taller window shows more of the scene";
+}
 
-    std::string zoom;
-    if (fill && (expand || fit)) {
-        zoom = "    /* Expand and Fit fit the whole design area (smaller scale); Fill covers the window (larger scale). */\n"
-               "    if (mode == SCENE_SCALE_FILL) {\n"
-               "        camera.zoom = scale_x > scale_y ? scale_x : scale_y;\n"
-               "    } else {\n"
-               "        camera.zoom = scale_x < scale_y ? scale_x : scale_y;\n"
-               "    }\n";
-    } else if (fill) {
-        zoom = "    /* Fill covers the window (the larger scale). */\n"
-               "    camera.zoom = scale_x > scale_y ? scale_x : scale_y;\n"
-               "    (void)mode;\n";
-    } else {
-        zoom = std::string("    /* ") + (expand && fit ? "Expand and Fit fit" : expand ? "Expand fits" : "Fit fits") +
-               " the whole design area (the smaller scale). */\n"
-               "    camera.zoom = scale_x < scale_y ? scale_x : scale_y;\n"
-               "    (void)mode;\n";
-    }
-    code.source = "Camera2D scene_camera(SceneScaleMode mode) {\n"
-                  "    const float screen_w = (float)GetScreenWidth();\n"
-                  "    const float screen_h = (float)GetScreenHeight();\n"
-                  "    const float scale_x = screen_w / SCENE_DESIGN_WIDTH;\n"
-                  "    const float scale_y = screen_h / SCENE_DESIGN_HEIGHT;\n"
-                  "    Camera2D camera = {0};\n"
-                  "    camera.offset.x = screen_w * 0.5f;\n"
-                  "    camera.offset.y = screen_h * 0.5f;\n" +
-                  zoom +
-                  "    return camera;\n"
-                  "}\n\n";
+// scene_camera, scene_begin, scene_end and scene_ui_canvas for the project's scale mode.
+std::string scalingCode(ScaleMode mode) {
+    const bool fit = mode == ScaleMode::Fit;
+    std::string code = std::string("Camera2D scene_camera(void) {\n"
+                                   "    const float screen_w = (float)GetScreenWidth();\n"
+                                   "    const float screen_h = (float)GetScreenHeight();\n"
+                                   "    const float scale_x = screen_w / SCENE_DESIGN_WIDTH;\n"
+                                   "    const float scale_y = screen_h / SCENE_DESIGN_HEIGHT;\n"
+                                   "    Camera2D camera = {0};\n"
+                                   "    camera.offset.x = screen_w * 0.5f;\n"
+                                   "    camera.offset.y = screen_h * 0.5f;\n") +
+                       (mode == ScaleMode::Fill ? "    camera.zoom = scale_x > scale_y ? scale_x : scale_y; /* covers the window */\n"
+                                                : "    camera.zoom = scale_x < scale_y ? scale_x : scale_y; /* fits the design area */\n") +
+                       "    return camera;\n"
+                       "}\n\n";
     if (fit) {
-        code.source = "/* Mode of the current scene_begin(), so scene_end() knows whether to draw Fit's bars. */\n"
-                      "static SceneScaleMode active_mode = SCENE_DEFAULT_SCALE_MODE;\n\n" +
-                      code.source +
-                      "/* The design area in window pixels, for Fit's clipping and bars. */\n"
-                      "static Rectangle design_rect_on_screen(Camera2D camera) {\n"
-                      "    const float w = SCENE_DESIGN_WIDTH * camera.zoom;\n"
-                      "    const float h = SCENE_DESIGN_HEIGHT * camera.zoom;\n"
-                      "    Rectangle r;\n"
-                      "    r.x = camera.offset.x - w * 0.5f;\n"
-                      "    r.y = camera.offset.y - h * 0.5f;\n"
-                      "    r.width = w;\n"
-                      "    r.height = h;\n"
-                      "    return r;\n"
-                      "}\n\n"
-                      "void scene_begin(SceneScaleMode mode) {\n"
-                      "    const Camera2D camera = scene_camera(mode);\n"
-                      "    active_mode = mode;\n"
-                      "    if (mode == SCENE_SCALE_FIT) {\n"
-                      "        const Rectangle r = design_rect_on_screen(camera);\n"
-                      "        BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);\n"
-                      "    }\n"
-                      "    BeginMode2D(camera);\n"
-                      "}\n\n"
-                      "void scene_end(void) {\n"
-                      "    EndMode2D();\n"
-                      "    if (active_mode == SCENE_SCALE_FIT) {\n"
-                      "        const Rectangle r = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));\n"
-                      "        const int screen_w = GetScreenWidth();\n"
-                      "        const int screen_h = GetScreenHeight();\n"
-                      "        EndScissorMode();\n"
-                      "        /* Black bars outside the design area. */\n"
-                      "        DrawRectangle(0, 0, screen_w, (int)r.y, BLACK);\n"
-                      "        DrawRectangle(0, (int)(r.y + r.height), screen_w, screen_h, BLACK);\n"
-                      "        DrawRectangle(0, 0, (int)r.x, screen_h, BLACK);\n"
-                      "        DrawRectangle((int)(r.x + r.width), 0, screen_w, screen_h, BLACK);\n"
-                      "    }\n"
-                      "}\n";
+        code += "/* The design area in window pixels: where the scene is drawn, inside the bars. */\n"
+                "static Rectangle design_rect_on_screen(void) {\n"
+                "    const Camera2D camera = scene_camera();\n"
+                "    const float w = SCENE_DESIGN_WIDTH * camera.zoom;\n"
+                "    const float h = SCENE_DESIGN_HEIGHT * camera.zoom;\n"
+                "    Rectangle r;\n"
+                "    r.x = camera.offset.x - w * 0.5f;\n"
+                "    r.y = camera.offset.y - h * 0.5f;\n"
+                "    r.width = w;\n"
+                "    r.height = h;\n"
+                "    return r;\n"
+                "}\n\n"
+                "void scene_begin(void) {\n"
+                "    const Rectangle r = design_rect_on_screen();\n"
+                "    BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);\n"
+                "    BeginMode2D(scene_camera());\n"
+                "}\n\n"
+                "void scene_end(void) {\n"
+                "    const Rectangle r = design_rect_on_screen();\n"
+                "    const int screen_w = GetScreenWidth();\n"
+                "    const int screen_h = GetScreenHeight();\n"
+                "    EndMode2D();\n"
+                "    EndScissorMode();\n"
+                "    /* Black bars outside the design area. */\n"
+                "    DrawRectangle(0, 0, screen_w, (int)r.y, BLACK);\n"
+                "    DrawRectangle(0, (int)(r.y + r.height), screen_w, screen_h, BLACK);\n"
+                "    DrawRectangle(0, 0, (int)r.x, screen_h, BLACK);\n"
+                "    DrawRectangle((int)(r.x + r.width), 0, screen_w, screen_h, BLACK);\n"
+                "}\n\n"
+                "/* The Canvas: the design area inside the bars. One canvas unit is ui_scale pixels. */\n"
+                "Rectangle scene_ui_canvas(void) {\n"
+                "    return design_rect_on_screen();\n"
+                "}\n";
     } else {
-        code.source += "void scene_begin(SceneScaleMode mode) {\n"
-                       "    BeginMode2D(scene_camera(mode));\n"
-                       "}\n\n"
-                       "void scene_end(void) {\n"
-                       "    EndMode2D();\n"
-                       "}\n";
-    }
-
-    const std::string window = "        scene->ui_canvas.x = 0.0f;\n"
-                               "        scene->ui_canvas.y = 0.0f;\n"
-                               "        scene->ui_canvas.width = (float)GetScreenWidth();\n"
-                               "        scene->ui_canvas.height = (float)GetScreenHeight();\n";
-    if (fit && (expand || fill)) {
-        code.uiCanvas = "    /* The Canvas: the window, or with Fit the design area inside the bars. One canvas unit\n"
-                        "       is ui_scale pixels: the design area just fits inside the canvas. */\n"
-                        "    if (mode == SCENE_SCALE_FIT) {\n"
-                        "        scene->ui_canvas = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));\n"
-                        "    } else {\n" +
-                        window + "    }\n";
-    } else if (fit) {
-        code.uiCanvas = "    /* The Canvas: the design area inside Fit's bars. One canvas unit is ui_scale pixels. */\n"
-                        "    scene->ui_canvas = design_rect_on_screen(scene_camera(SCENE_SCALE_FIT));\n"
-                        "    (void)mode;\n";
-    } else {
-        code.uiCanvas = "    /* The Canvas: the window. One canvas unit is ui_scale pixels: the design area just\n"
-                        "       fits inside the canvas. */\n"
-                        "    {\n" +
-                        window + "    }\n"
-                                 "    (void)mode;\n";
+        code += "void scene_begin(void) {\n"
+                "    BeginMode2D(scene_camera());\n"
+                "}\n\n"
+                "void scene_end(void) {\n"
+                "    EndMode2D();\n"
+                "}\n\n"
+                "/* The Canvas: the window. One canvas unit is ui_scale pixels: the design area just fits\n"
+                "   inside the canvas. */\n"
+                "Rectangle scene_ui_canvas(void) {\n"
+                "    Rectangle canvas;\n"
+                "    canvas.x = 0.0f;\n"
+                "    canvas.y = 0.0f;\n"
+                "    canvas.width = (float)GetScreenWidth();\n"
+                "    canvas.height = (float)GetScreenHeight();\n"
+                "    return canvas;\n"
+                "}\n";
     }
     return code;
 }
 } // namespace
 
 bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display,
-                      const ExportSettings& options, const PhysicsSettings& physics, std::string& error) {
-    const ScalingCode scaling = scalingCode(options);
+                      const PhysicsSettings& physics, std::string& error) {
     const std::vector<std::pair<std::string, std::string>> values{
         {"marker", kGeneratedMarker},
         {"width", floatLiteral(static_cast<float>(display.width))},
         {"height", floatLiteral(static_cast<float>(display.height))},
-        {"mode", scaleModeConstant(display.scaleMode)},
-        {"mode_enum", scaling.modeEnum},
-        {"mode_count", std::to_string(options.modeCount())},
-        {"mode_list", scaling.modeList},
-        {"scaling_source", scaling.source},
-        {"ui_canvas", scaling.uiCanvas},
+        {"mode", scaleModeName(display.scaleMode)},
+        {"mode_note", scaleModeNote(display.scaleMode)},
+        {"scaling_source", scalingCode(display.scaleMode)},
         {"physics", physics.enabled ? "1" : "0"},
         {"pixels_per_meter", floatLiteral(physics.pixelsPerMeter)},
         {"gravity_x", floatLiteral(physics.gravityX)},
@@ -863,26 +803,20 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
 extern "C" {
 #endif
 
-/* ----- Screen scaling: the design area, fitted to any window ----- */
+/* ----- Screen scaling: the design area, fitted to any window ({{mode}}) ----- */
 
 #define SCENE_DESIGN_WIDTH {{width}}
 #define SCENE_DESIGN_HEIGHT {{height}}
 
-typedef enum SceneScaleMode {
-{{mode_enum}}} SceneScaleMode;
-
-#define SCENE_SCALE_MODE_COUNT {{mode_count}}
-extern const SceneScaleMode scene_scale_modes[SCENE_SCALE_MODE_COUNT];
-#define SCENE_DEFAULT_SCALE_MODE {{mode}}
-
-/* The camera scene_begin uses: scene origin at the window centre, scaled for `mode`. */
-Camera2D scene_camera(SceneScaleMode mode);
+/* The camera scene_begin uses: the scene origin at the window centre, and
+   {{mode_note}}. */
+Camera2D scene_camera(void);
 /* Between these, everything is drawn in scene coordinates. */
-void scene_begin(SceneScaleMode mode);
+void scene_begin(void);
 void scene_end(void);
 
 /* The Canvas UI is laid out on, in window pixels, and window pixels per canvas unit. */
-Rectangle scene_ui_canvas(SceneScaleMode mode);
+Rectangle scene_ui_canvas(void);
 float scene_ui_scale(Rectangle canvas);
 
 /* ----- Entities ----- */
@@ -1053,15 +987,7 @@ void scene_platformer_update(SceneEntity *entity, float dt);
 #include <math.h>
 #include <string.h>
 
-const SceneScaleMode scene_scale_modes[SCENE_SCALE_MODE_COUNT] = {{{mode_list}}};
-
 {{scaling_source}}
-Rectangle scene_ui_canvas(SceneScaleMode mode) {
-    struct {
-        Rectangle ui_canvas;
-    } canvas, *scene = &canvas;
-{{ui_canvas}}    return scene->ui_canvas;
-}
 
 float scene_ui_scale(Rectangle canvas) {
     const float scale_x = canvas.width / SCENE_DESIGN_WIDTH;
@@ -1357,7 +1283,6 @@ bool writeProjectMain(const std::string& projectName, const std::filesystem::pat
 
 int main(void) {
     static SceneManager scenes;
-    const SceneScaleMode mode = SCENE_DEFAULT_SCALE_MODE;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow((int)SCENE_DESIGN_WIDTH, (int)SCENE_DESIGN_HEIGHT, "{{project}}");
@@ -1373,11 +1298,11 @@ int main(void) {
 
         BeginDrawing();
         ClearBackground((Color){20, 20, 23, 255});
-        scene_begin(mode);
+        scene_begin();
         scene_manager_draw(&scenes);
         /* Your drawing in scene coordinates, e.g. at an entity's pose.position. */
         scene_end();
-        scene_manager_draw_ui(&scenes, mode);
+        scene_manager_draw_ui(&scenes);
         /* Your UI in window pixels, e.g. inside a UI element's rect. */
         EndDrawing();
     }

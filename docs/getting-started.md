@@ -64,12 +64,8 @@ Git Bash and MSYS shells wait as usual.
 
 **Project Settings** has an Export section.
 
-**Exported modes:** which of the [scale modes](scaling.md) (Expand, Fit, Fill) the
-runtime supports.
-
-- Only their code is exported, and `SceneScaleMode` lists only them.
-- The project's default scale mode is always included.
-- With Fit left out, its clipping and black-bar code isn't in the export at all.
+**Scale mode:** the export has only the project's [scale mode](scaling.md) (Expand, Fit
+or Fill), set above the Export section.
 
 **When to write the files you may edit by hand** (the Makefile, `project_main.c`, the
 `.vscode` settings and the `.gitignore`), each set separately:

@@ -12,8 +12,8 @@ added in the editor are drawn for you.
 
 ## Coordinates
 
-- **The Canvas** is the window. With `SCENE_SCALE_FIT` it is the design area inside the
-  black bars instead.
+- **The Canvas** is the window. With the Fit [scale mode](scaling.md) it is the design area
+  inside the black bars instead.
 - **Canvas units:** layouts are in canvas units, the design resolution's units. On a window
   of a different shape, the extra length on one axis becomes extra canvas.
 - **Rects:** an element's `rect` is in window pixels, y down, (0, 0) at the top-left.
@@ -32,10 +32,10 @@ typedef struct SceneUIElement {
 
 | Function | What it does |
 |---|---|
-| `scene_<name>_update_ui(s, mode)` | lays out every element's `rect`, and sets `s->ui_canvas` and `s->ui_scale` |
-| `scene_<name>_draw_ui(s, mode)` | the same, then draws the rectangles and labels, parents first |
+| `scene_<name>_update_ui(s)` | lays out every element's `rect`, and sets `s->ui_canvas` and `s->ui_scale` |
+| `scene_<name>_draw_ui(s)` | the same, then draws the rectangles and labels, parents first |
 
-Pass the mode given to `scene_begin`, and call `draw_ui` after `scene_end()`.
+Call `draw_ui` after `scene_end()`.
 
 ## Your own widgets
 
@@ -43,7 +43,7 @@ Draw into an element's `rect` after `draw_ui`. Sizes designed in canvas units be
 when multiplied by `s->ui_scale`, so they scale with the rest of the UI:
 
 ```c
-scene_hud_draw_ui(&hud, mode);
+scene_hud_draw_ui(&hud);
 
 /* A health bar filling the "Health Bar" element, with a 4-unit margin. */
 {
@@ -61,7 +61,7 @@ scene_draw_ui_text(GetFontDefault(), TextFormat("%d FPS", GetFPS()), hud.minimap
 **Clicks:** call `update_ui` first (or use last frame's rects), then test the rect:
 
 ```c
-scene_menu_update_ui(&menu, mode);
+scene_menu_update_ui(&menu);
 if (CheckCollisionPointRec(GetMousePosition(), menu.play.rect) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     scenes.current = SCENE_ID_LEVEL;
 }

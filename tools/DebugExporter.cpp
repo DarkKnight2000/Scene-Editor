@@ -5,10 +5,10 @@
 //   debug/debug_scenes.h/.c   debug_check(): every pose and UI rect is finite;
 //                             debug_draw_colliders(): outlines of the current scene's colliders;
 //                             debug_scene_names[]
-//   debug/debug_main.c        --frames N: draws every scene in every scale mode (with collider
-//                             outlines), then runs debug_check; exit code 1 on failure.
-//                             --shots PREFIX: renders every scene in every mode, and again after
-//                             2 s of physics, to PREFIX_<scene>_<mode|after>.png
+//   debug/debug_main.c        --frames N: draws every scene (with collider outlines), then
+//                             runs debug_check; exit code 1 on failure.
+//                             --shots PREFIX: renders every scene, and again after 2 s of
+//                             physics, to PREFIX_<scene>.png and PREFIX_<scene>_after.png
 //
 // Build and run it from the export folder with the export's own Makefile, swapping src/ for
 // debug/ and warnings for errors:
@@ -154,24 +154,24 @@ constexpr const char* kDebugMain = R"(: debug runs (SceneDebugExport). Not part 
 
 #include "debug_scenes.h"
 
-static void frame(SceneManager *m, SceneScaleMode mode, int colliders) {
+static void frame(SceneManager *m, int colliders) {
     BeginDrawing();
     ClearBackground((Color){20, 20, 23, 255});
-    scene_begin(mode);
+    scene_begin();
     scene_manager_draw(m);
     if (colliders) {
         debug_draw_colliders(m, GREEN);
     }
     scene_end();
-    scene_manager_draw_ui(m, mode);
+    scene_manager_draw_ui(m);
 }
 
 /* The second of two frames, saved as a PNG. */
-static void shot(SceneManager *m, SceneScaleMode mode, const char *path) {
+static void shot(SceneManager *m, const char *path) {
     Image image;
-    frame(m, mode, 0);
+    frame(m, 0);
     EndDrawing();
-    frame(m, mode, 0);
+    frame(m, 0);
     rlDrawRenderBatchActive(); /* the UI is still batched */
     image = LoadImageFromScreen();
     EndDrawing();
@@ -194,18 +194,16 @@ int main(int argc, char **argv) {
     }
     SetTraceLogLevel(LOG_WARNING);
     if (prefix != NULL) {
-        int i, mode, step;
+        int i, step;
         InitWindow(1100, 650, "debug shots"); /* not the design's shape: scaling matters */
         scene_manager_init(&scenes, 0);
         for (i = 0; i < SCENE_ID_COUNT; ++i) {
             scenes.current = i;
-            for (mode = 0; mode < SCENE_SCALE_MODE_COUNT; ++mode) {
-                shot(&scenes, scene_scale_modes[mode], TextFormat("%s_%s_%d.png", prefix, debug_scene_names[i], mode));
-            }
+            shot(&scenes, TextFormat("%s_%s.png", prefix, debug_scene_names[i]));
             for (step = 0; step < 120; ++step) {
                 scene_manager_update(&scenes, 1.0f / 60.0f);
             }
-            shot(&scenes, SCENE_DEFAULT_SCALE_MODE, TextFormat("%s_%s_after.png", prefix, debug_scene_names[i]));
+            shot(&scenes, TextFormat("%s_%s_after.png", prefix, debug_scene_names[i]));
         }
     } else {
         int i;
@@ -214,7 +212,7 @@ int main(int argc, char **argv) {
         for (i = 0; i < frames && !WindowShouldClose(); ++i) {
             scenes.current = (i / 10) % SCENE_ID_COUNT;
             scene_manager_update(&scenes, 1.0f / 60.0f);
-            frame(&scenes, scene_scale_modes[(i / (10 * SCENE_ID_COUNT)) % SCENE_SCALE_MODE_COUNT], i % 2);
+            frame(&scenes, i % 2);
             EndDrawing();
         }
     }

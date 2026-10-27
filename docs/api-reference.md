@@ -20,8 +20,8 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `void scene_<name>_init(<Name>Scene *s)` | always |
 | `void scene_<name>_update_poses(<Name>Scene *s)` | entities |
 | `void scene_<name>_draw(<Name>Scene *s)` | entities |
-| `void scene_<name>_update_ui(<Name>Scene *s, SceneScaleMode mode)` | UI elements |
-| `void scene_<name>_draw_ui(<Name>Scene *s, SceneScaleMode mode)` | UI elements |
+| `void scene_<name>_update_ui(<Name>Scene *s)` | UI elements |
+| `void scene_<name>_draw_ui(<Name>Scene *s)` | UI elements |
 | `void scene_<name>_step(<Name>Scene *s, float dt)` | physics bodies |
 | `void scene_<name>_deinit(<Name>Scene *s)` | physics bodies |
 
@@ -35,7 +35,7 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `scene_manager_init(m, first)` | initialises every scene, shows `first` |
 | `scene_manager_update(m, dt)` | the current scene's physics |
 | `scene_manager_draw(m)` | the current scene |
-| `scene_manager_draw_ui(m, mode)` | the current scene's UI |
+| `scene_manager_draw_ui(m)` | the current scene's UI |
 | `scene_manager_deinit(m)` | frees what the scenes' init created |
 
 ## Screen scaling: `utils/scene_common.h`
@@ -43,12 +43,9 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | | |
 |---|---|
 | `SCENE_DESIGN_WIDTH`, `SCENE_DESIGN_HEIGHT` | the design resolution |
-| `SceneScaleMode` | the exported ones of `SCENE_SCALE_EXPAND` (0), `SCENE_SCALE_FIT` (1), `SCENE_SCALE_FILL` (2) |
-| `SCENE_SCALE_MODE_COUNT`, `scene_scale_modes[]` | the exported modes |
-| `SCENE_DEFAULT_SCALE_MODE` | the mode chosen in Project Settings |
-| `Camera2D scene_camera(SceneScaleMode mode)` | the camera `scene_begin` uses |
-| `void scene_begin(SceneScaleMode mode)`, `void scene_end(void)` | draw in scene coordinates in between |
-| `Rectangle scene_ui_canvas(SceneScaleMode mode)` | the Canvas in window pixels |
+| `Camera2D scene_camera(void)` | the camera `scene_begin` uses, for the project's scale mode |
+| `void scene_begin(void)`, `void scene_end(void)` | draw in scene coordinates in between |
+| `Rectangle scene_ui_canvas(void)` | the Canvas in window pixels |
 | `float scene_ui_scale(Rectangle canvas)` | window pixels per canvas unit |
 
 ## Entities

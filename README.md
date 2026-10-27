@@ -17,8 +17,8 @@ game reads where things are and draws its own things there, scaled to any window
   centre, or stretched along them. Preview other screen shapes (16:10, 21:9, 4:3,
   portrait...) right in the editor. In the game, each element has a `rect` in window
   pixels to draw your own widgets into.
-- **Scaling:** design for one resolution; the game fits it to any window with Expand,
-  Fit or Fill.
+- **Scaling:** design for one resolution; the game fits it to any window with the scale
+  mode you pick (Expand, Fit or Fill).
 - **Physics (optional):** rigidbodies and colliders become [Box2D](https://box2d.org/)
   bodies.
 - **Platformer controller:** a component that makes a body a playable character: run,
@@ -40,11 +40,11 @@ int main(void) {
         scene_manager_update(&scenes, GetFrameTime());
         BeginDrawing();
         ClearBackground(BLACK);
-        scene_begin(SCENE_DEFAULT_SCALE_MODE);
+        scene_begin();
         scene_manager_draw(&scenes);
         DrawCircleV(scenes.level.coin.pose.position, 12.0f, GOLD); /* your own drawing, in scene coordinates */
         scene_end();
-        scene_manager_draw_ui(&scenes, SCENE_DEFAULT_SCALE_MODE);
+        scene_manager_draw_ui(&scenes);
         EndDrawing();
     }
     scene_manager_deinit(&scenes);

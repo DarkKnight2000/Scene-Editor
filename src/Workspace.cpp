@@ -723,7 +723,7 @@ void Workspace::openProjectSettings() {
 }
 
 void Workspace::drawProjectSettingsDialog() {
-    const Rectangle box = beginModal(760.0f, 640.0f);
+    const Rectangle box = beginModal(760.0f, 600.0f);
     bool close = ui::windowBox(box, "Project Settings");
     const float lx = box.x + 16.0f;
     const float fx = box.x + 200.0f;
@@ -767,24 +767,10 @@ void Workspace::drawProjectSettingsDialog() {
         "No bars; the design area is cropped to fit.",
     };
     ui::label({fx, box.y + 152.0f, fw, 24.0f}, help[std::clamp(m_settingsMode, 0, 2)], dim);
-    ui::label({lx, box.y + 196.0f, box.width - 32.0f, 24.0f},
-              "Shown as a frame in the Scene view and used by Export.", dim);
+    ui::label({fx, box.y + 176.0f, fw, 24.0f}, "The exported game always scales this way.", dim);
 
-    // Export: which scale modes the runtime supports, and when files you may edit are written.
-    DrawLineV({lx, box.y + 232.0f}, {box.x + box.width - 16.0f, box.y + 232.0f}, ui::styleColor(LINE_COLOR));
-    ui::label({lx, box.y + 244.0f, 180.0f, 26.0f}, "Exported modes", text);
-    const int defaultMode = std::clamp(m_settingsMode, 0, 2);
-    m_settingsExport.scaleModes[defaultMode] = true; // the default mode is always exported
-    for (int i = 0; i < 3; ++i) {
-        const Rectangle r{fx + static_cast<float>(i) * 130.0f, box.y + 247.0f, 20.0f, 20.0f};
-        if (i == defaultMode) {
-            GuiDisable();
-        }
-        ui::checkbox(r, &m_settingsExport.scaleModes[i]);
-        GuiEnable();
-        ui::label({r.x + 26.0f, box.y + 244.0f, 100.0f, 26.0f}, scaleModeName(kScaleModes[i]),
-                  i == defaultMode ? dim : text);
-    }
+    // Export: when files you may edit are written.
+    DrawLineV({lx, box.y + 216.0f}, {box.x + box.width - 16.0f, box.y + 216.0f}, ui::styleColor(LINE_COLOR));
 
     std::vector<std::string> policies;
     for (const ExportPolicy policy : kExportPolicies) {
@@ -802,18 +788,18 @@ void Workspace::drawProjectSettingsDialog() {
     };
     // Bottom row first: an open dropdown draws over the rows below it.
     for (int i = static_cast<int>(std::size(rows)) - 1; i >= 0; --i) {
-        const float y = box.y + 282.0f + static_cast<float>(i) * 32.0f;
+        const float y = box.y + 228.0f + static_cast<float>(i) * 32.0f;
         ui::label({lx, y, 180.0f, 26.0f}, rows[i].label, text);
         int current = static_cast<int>(*rows[i].policy);
         if (ui::combo({fx, y, 200.0f, 26.0f}, rows[i].policy, policies, &current)) {
             *rows[i].policy = kExportPolicies[std::clamp(current, 0, 2)];
         }
     }
-    ui::label({fx + 212.0f, box.y + 282.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
-    ui::label({fx + 212.0f, box.y + 314.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
+    ui::label({fx + 212.0f, box.y + 228.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
+    ui::label({fx + 212.0f, box.y + 260.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
 
     // Physics (Box2D) in the exported game.
-    const float py = box.y + 420.0f;
+    const float py = box.y + 380.0f;
     DrawLineV({lx, py - 12.0f}, {box.x + box.width - 16.0f, py - 12.0f}, ui::styleColor(LINE_COLOR));
     ui::label({lx, py, 180.0f, 26.0f}, "Physics (Box2D)", text);
     ui::checkbox({fx, py + 3.0f, 20.0f, 20.0f}, &m_settingsPhysics.enabled);
@@ -858,7 +844,6 @@ void Workspace::drawProjectSettingsDialog() {
         m_project.exportSettings = m_settingsExport;
         m_project.physics = m_settingsPhysics;
         m_project.box2dDir = m_settingsBox2d.empty() ? Project::defaultBox2dDir() : m_settingsBox2d;
-        m_project.exportSettings.includeMode(m_project.display.scaleMode);
         std::string error;
         if (saveProject(m_project, error)) {
             logInfo("Project settings saved: " + std::to_string(m_project.display.width) + "x" +

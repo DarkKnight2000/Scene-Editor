@@ -82,14 +82,7 @@ void readPolicy(const json& j, const char* key, ExportPolicy& out) {
 }
 
 json exportJson(const ExportSettings& e) {
-    json modes = json::array();
-    for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
-        if (e.scaleModes[i]) {
-            modes.push_back(scaleModeName(kScaleModes[i]));
-        }
-    }
-    return {{"scaleModes", std::move(modes)},
-            {"makefile", policyKey(e.makefile)},
+    return {{"makefile", policyKey(e.makefile)},
             {"projectMain", policyKey(e.projectMain)},
             {"vscodeSettings", policyKey(e.vscodeSettings)},
             {"gitignore", policyKey(e.gitignore)}};
@@ -124,18 +117,6 @@ const char* exportPolicyLabel(ExportPolicy policy) {
     case ExportPolicy::Always: break;
     }
     return "Always";
-}
-
-void ExportSettings::includeMode(ScaleMode defaultMode) {
-    for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
-        if (kScaleModes[i] == defaultMode) {
-            scaleModes[i] = true;
-        }
-    }
-}
-
-int ExportSettings::modeCount() const {
-    return static_cast<int>(std::count(std::begin(scaleModes), std::end(scaleModes), true));
 }
 
 std::string Project::defaultBox2dDir() {
@@ -219,17 +200,11 @@ bool loadProject(const std::filesystem::path& path, Project& project, std::strin
     }
     if (const auto e = j.find("export"); e != j.end() && e->is_object()) {
         ExportSettings& settings = loaded.exportSettings;
-        if (const auto modes = e->find("scaleModes"); modes != e->end() && modes->is_array()) {
-            for (std::size_t i = 0; i < std::size(kScaleModes); ++i) {
-                settings.scaleModes[i] = std::find(modes->begin(), modes->end(), scaleModeName(kScaleModes[i])) != modes->end();
-            }
-        }
         readPolicy(*e, "makefile", settings.makefile);
         readPolicy(*e, "projectMain", settings.projectMain);
         readPolicy(*e, "vscodeSettings", settings.vscodeSettings);
         readPolicy(*e, "gitignore", settings.gitignore);
     }
-    loaded.exportSettings.includeMode(loaded.display.scaleMode);
     if (const auto p = j.find("physics"); p != j.end() && p->is_object()) {
         PhysicsSettings& physics = loaded.physics;
         physics.enabled = p->value("enabled", physics.enabled);
