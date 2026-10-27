@@ -25,7 +25,7 @@ std::filesystem::path projectExportDir(const Project& project) {
 
 bool exportProject(const Project& project,
                    const std::function<const Scene*(const std::filesystem::path& file)>& openScene,
-                   std::vector<ExportedScene>* exported) {
+                   std::vector<ExportedScene>* exported, const std::string& startScene) {
     const std::filesystem::path outDir = projectExportDir(project);
 
     // Files you may edit by hand, and when Project Settings says to write them.
@@ -115,7 +115,7 @@ bool exportProject(const Project& project,
     std::string error;
     bool usable = !scenes.empty();
     if (usable && !(writeSceneCommon(outDir, project.display, options, project.physics, error) &&
-                    writeSceneManager(scenes, outDir, error) &&
+                    writeSceneManager(scenes, outDir, startScene, error) &&
                     (!editable[1].write || writeProjectMain(project.name, outDir, error)) &&
                     (!editable[0].write || writeMakefile(project.name, outDir, error)) &&
                     (!editable[2].write || writeVSCodeFiles(outDir, project.name, error)) &&

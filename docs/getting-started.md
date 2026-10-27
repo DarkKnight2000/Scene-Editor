@@ -3,6 +3,9 @@
 ## Exporting
 
 In the editor, use **Export** (Ctrl+E) or **Play** (F5, which exports, builds and runs).
+Both export every scene. Play also makes the game start in the scene you're editing (the
+active tab); Export starts it in the first scene. See `SCENE_ID_START` in
+[Scenes](scenes.md#the-scenemanager).
 The project is written to `<project>/export/`:
 
 ```text

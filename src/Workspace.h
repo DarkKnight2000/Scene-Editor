@@ -71,12 +71,13 @@ private:
     void requestSaveAs(Document& doc, bool closeAfterSave);
     void requestClose(Document& doc);
 
-    // Exports every scene in the project to <project>/export as C (see SceneExporter).
-    // Open tabs are exported as they are in the editor, including unsaved changes.
+    // Exports every scene in the project to <project>/export as C (see SceneExporter), after
+    // saving the open scenes. The game starts in `startScene` (empty: the first scene).
     // Returns false if nothing usable was exported.
-    bool exportProject();
+    bool exportProject(const std::string& startScene = {});
 
-    // Play: export, then build the release with the exported Makefile and run it.
+    // Play: export (starting in the scene shown in the active tab), then build the game with
+    // the exported Makefile and run it.
     void play();
 
     // Immediate operations, only called from deferred actions or dialogs.

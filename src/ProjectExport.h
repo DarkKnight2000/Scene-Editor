@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <string>
 #include <vector>
 
 #include "Project.h"
@@ -19,7 +20,8 @@ std::filesystem::path projectExportDir(const Project& project);
 // `openScene` may return the scene as the editor has it in memory, to export what the
 // editor shows; otherwise (or without `openScene`) the file is read. Returns whether the
 // export can be built: at least one scene, and every shared file written. `exported`, if
-// given, receives what was exported of each scene.
+// given, receives what was exported of each scene. The game starts in `startScene` (a scene
+// name; empty: the first scene).
 bool exportProject(const Project& project,
                    const std::function<const Scene*(const std::filesystem::path& file)>& openScene = {},
-                   std::vector<ExportedScene>* exported = nullptr);
+                   std::vector<ExportedScene>* exported = nullptr, const std::string& startScene = {});

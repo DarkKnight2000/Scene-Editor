@@ -580,7 +580,14 @@ std::string sceneIdConstant(const std::string& sceneName) {
 }
 } // namespace
 
-bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::filesystem::path& outDir, std::string& error) {
+bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::filesystem::path& outDir,
+                       const std::string& startScene, std::string& error) {
+    std::string start = sceneIdConstant(scenes.front().name);
+    for (const ExportedScene& s : scenes) {
+        if (s.name == startScene) {
+            start = sceneIdConstant(s.name);
+        }
+    }
     std::ostringstream includes;
     std::ostringstream ids;
     std::ostringstream members;
@@ -625,6 +632,7 @@ bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::file
         {"draw", body(draw, "    (void)m;\n")},
         {"draw_ui", body(drawUI, "    (void)m;\n    (void)mode;\n")},
         {"deinit", deinit.str().empty() ? "    (void)m;\n" : deinit.str()},
+        {"start", start},
     };
 
     const std::string h = fill(R"GEN({{marker}}: every scene of the project. Do not edit.
@@ -639,6 +647,9 @@ extern "C" {
 typedef enum SceneId {
 {{ids}}    SCENE_ID_COUNT
 } SceneId;
+
+/* The scene the game starts in: the first one, or with Play in the editor the one shown. */
+#define SCENE_ID_START {{start}}
 
 /* Every scene, and the one shown: set `current` to switch scenes. */
 typedef struct SceneManager {
@@ -1351,7 +1362,7 @@ int main(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow((int)SCENE_DESIGN_WIDTH, (int)SCENE_DESIGN_HEIGHT, "{{project}}");
     SetTargetFPS(60);
-    scene_manager_init(&scenes, 0);
+    scene_manager_init(&scenes, SCENE_ID_START);
 
     while (!WindowShouldClose()) {
         if (IsKeyPressed(KEY_TAB)) {

@@ -31,6 +31,7 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 |---|---|
 | `SceneId` | `SCENE_ID_<NAME>` per scene, then `SCENE_ID_COUNT` |
 | `SceneManager` | one member per scene (named after it), and `int current` |
+| `SCENE_ID_START` | the scene to start in: the first scene, or after Play the one being edited |
 | `scene_manager_init(m, first)` | initialises every scene, shows `first` |
 | `scene_manager_update(m, dt)` | the current scene's physics |
 | `scene_manager_draw(m)` | the current scene |

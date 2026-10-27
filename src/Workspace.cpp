@@ -875,7 +875,13 @@ void Workspace::drawProjectSettingsDialog() {
 // --- Export ---
 
 void Workspace::play() {
-    if (exportProject()) {
+    // Start in the scene being edited (a saved one; otherwise the first scene).
+    const Document& doc = active();
+    const std::string startScene = doc.path.empty() ? std::string() : doc.path.stem().string();
+    if (exportProject(startScene)) {
+        if (!startScene.empty()) {
+            logInfo("Play: starting in " + startScene);
+        }
         const std::filesystem::path outDir = projectExportDir(m_project);
         m_runner.play(outDir, exportedExecutable(outDir, m_project.name));
     } else {
@@ -883,7 +889,7 @@ void Workspace::play() {
     }
 }
 
-bool Workspace::exportProject() {
+bool Workspace::exportProject(const std::string& startScene) {
     // Save open scenes first (Export and Play both come here), so the scene files match what
     // gets exported. Never-saved scenes have no file yet, so they can't be exported.
     for (const auto& doc : m_docs) {
@@ -900,14 +906,17 @@ bool Workspace::exportProject() {
     }
 
     // Scenes open in a tab: export what the editor shows.
-    return ::exportProject(m_project, [this](const std::filesystem::path& file) -> const Scene* {
-        for (const auto& doc : m_docs) {
-            if (!doc->path.empty() && samePath(doc->path, file)) {
-                return &doc->scene;
+    return ::exportProject(
+        m_project,
+        [this](const std::filesystem::path& file) -> const Scene* {
+            for (const auto& doc : m_docs) {
+                if (!doc->path.empty() && samePath(doc->path, file)) {
+                    return &doc->scene;
+                }
             }
-        }
-        return nullptr;
-    });
+            return nullptr;
+        },
+        nullptr, startScene);
 }
 
 // --- Session ---

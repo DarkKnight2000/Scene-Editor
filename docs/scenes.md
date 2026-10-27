@@ -65,6 +65,9 @@ typedef struct SceneManager {
 | `scene_manager_draw_ui(m, mode)` | lays out and draws the current scene's UI, after `scene_end` |
 | `scene_manager_deinit(m)` | frees what the scenes' init created |
 
+- **The first scene:** `SCENE_ID_START` is the scene the game starts in: the first scene
+  after Export, or the scene you were editing after Play. The example `main()` passes it to
+  `scene_manager_init`; pass any `SceneId` instead to choose yourself.
 - **Switching scenes:** set `current` to another `SceneId`. Each scene keeps its state while
   it isn't shown.
 - **Reaching a scene's fields:** use its member, e.g. `scenes.hud.score.rect`.

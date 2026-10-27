@@ -28,7 +28,7 @@
 //                         scene_<id>_init, and as the scene needs them _update_poses / _draw
 //                         (entities), _update_ui / _draw_ui (UI elements), _step / _deinit
 //                         (physics bodies)
-//   scene_manager.h / .c  SceneId enum (SCENE_ID_<ID>), SceneManager holding every scene's
+//   scene_manager.h / .c  SceneId enum (SCENE_ID_<ID>), SCENE_ID_START, SceneManager holding every scene's
 //                         struct and the current SceneId; scene_manager_init / _update /
 //                         _draw / _draw_ui / _deinit
 //   scene_common.h / .c   the shared types, pose and UI layout maths, sprite and text
@@ -87,8 +87,10 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
                       const ExportSettings& options, const PhysicsSettings& physics, std::string& error);
 
 // Writes <outDir>/generated/scene_manager.h and .c: the SceneId enum and the SceneManager, in the
-// order given. `scenes` must not be empty.
-bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::filesystem::path& outDir, std::string& error);
+// order given, and SCENE_ID_START, the scene the game starts in: `startScene` (a scene name),
+// or the first scene if it's empty or not among `scenes`. `scenes` must not be empty.
+bool writeSceneManager(const std::vector<ExportedScene>& scenes, const std::filesystem::path& outDir,
+                       const std::string& startScene, std::string& error);
 
 // Writes <outDir>/src/project_main.c, a minimal example main() using the SceneManager.
 bool writeProjectMain(const std::string& projectName, const std::filesystem::path& outDir, std::string& error);
