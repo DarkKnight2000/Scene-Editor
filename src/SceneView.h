@@ -31,10 +31,10 @@ public:
     // Input: zoom, pan, selecting and dragging. Call before drawing, after the history has
     // started watching this frame (so a drag is recorded as an edit); `allowInput` is false
     // while a dialog is open.
-    void update(Scene& scene, entt::entity& selected, Rectangle viewport, const DisplaySettings& display,
+    void update(Scene& scene, EntityId& selected, Rectangle viewport, const DisplaySettings& display,
                 bool allowInput);
 
-    void draw(const Scene& scene, Rectangle viewport, entt::entity selected, const DisplaySettings& display);
+    void draw(const Scene& scene, Rectangle viewport, EntityId selected, const DisplaySettings& display);
 
     // Zoom readout, Frame button and Preview dropdown, right-aligned in the panel header.
     void drawHeader(Rectangle header, Rectangle viewport, const DisplaySettings& display);
@@ -42,9 +42,9 @@ public:
 private:
     Camera2D camera(Rectangle viewport) const;
     void frameDesign(Rectangle viewport, const DisplaySettings& display);
-    // The entity or UI element drawn topmost at `point` (scene units), or null. The current
+    // The entity or UI element drawn topmost at `point` (scene units), or kNoEntity. The current
     // selection wins where it is under the point, so it can be dragged out from under others.
-    entt::entity pick(const Scene& scene, Vector2 point, entt::entity selected, const UICanvasFrame& canvas) const;
+    EntityId pick(const Scene& scene, Vector2 point, EntityId selected, const UICanvasFrame& canvas) const;
     // Moves the dragged entity by `delta` (scene units) from where the drag started.
     void dragTo(Scene& scene, Vector2 delta, const UICanvasFrame& canvas) const;
 
@@ -55,7 +55,7 @@ private:
     int m_preview = 0; // index into the preview list; 0 = off
 
     // Left button: the entity pressed on, and whether it has become a drag.
-    entt::entity m_pressed = entt::null;
+    EntityId m_pressed = kNoEntity;
     bool m_dragging = false;
     Vector2 m_pressMouse{};  // window pixels
     Vector2 m_pressPoint{};  // scene units

@@ -1,33 +1,20 @@
 #pragma once
 
-#include <entt/entt.hpp>
 #include <raylib.h>
 
 #include <cstdint>
 #include <string>
 
-// Every editor entity has a Name and a Transform; the rest are optional.
+// The components an Entity (Scene.h) can have.
 
-// Identifies an entity across deletion and re-creation (entt handles get reused).
-// Unique within a Scene; not saved to files.
-using StableId = std::uint64_t;
+// Identifies an entity within its scene. Ids are never reused, so one stays valid across
+// delete + undo. Not saved to files.
+using EntityId = std::uint32_t;
+inline constexpr EntityId kNoEntity = 0;
 
-struct IdComponent {
-    StableId id;
-};
-
-// Marks the scene's root entity. Exactly one exists; it can't be deleted or moved.
-struct WorldTag {};
-
-struct NameComponent {
-    std::string name;
-};
-
+// A scene entity's placement, relative to the final placement of its parent (Entity::parent,
+// the entity it follows). The World's transform moves, rotates and zooms the whole scene.
 struct TransformComponent {
-    // Entity this transform follows (its parent): the World root unless set otherwise.
-    // Only the World has no origin. position/rotation/scale are relative to the origin's
-    // final placement, so the World's transform moves, rotates and zooms the whole scene.
-    entt::entity origin = entt::null;
     Vector2 position{0.0f, 0.0f};
     float rotation = 0.0f; // degrees
     Vector2 scale{1.0f, 1.0f};
@@ -101,12 +88,10 @@ struct PlatformerControllerComponent {
 // UI elements live under the Canvas root instead of the World. They're laid out on the
 // screen rather than placed in the scene, so the World's transform (camera, screen shake)
 // never moves them. They have a UIRectTransform instead of a Transform.
-
-// Marks the Canvas: the root of the UI tree. Exactly one exists; it can't be deleted or moved.
-// Its rectangle is the screen (with Fit scaling: the design area inside the black bars),
-// measured in canvas units: the design resolution's units, the longer side extended to the
-// screen's shape.
-struct CanvasTag {};
+//
+// The Canvas's rectangle is the screen (with Fit scaling: the design area inside the black
+// bars), measured in canvas units: the design resolution's units, the longer side extended
+// to the screen's shape.
 
 // A UI element's rectangle, relative to its parent's rectangle (the Canvas's or another UI
 // element's). All points use y down and (0, 0) at the top-left.
@@ -119,7 +104,6 @@ struct CanvasTag {};
 //   size: the element's size in canvas units; on a stretched axis it is added to the
 //     distance between the anchors instead (0 = exactly fill it, -20 = 10 in on each side).
 struct UIRectTransformComponent {
-    entt::entity parent = entt::null; // the Canvas or another UI element
     Vector2 anchorMin{0.5f, 0.5f};
     Vector2 anchorMax{0.5f, 0.5f};
     Vector2 pivot{0.5f, 0.5f};

@@ -18,6 +18,9 @@
 //   bin/debug/debug --frames 210
 //
 // The editor's own export removes debug/ again (its files carry the generated marker).
+//
+// It also loads and saves every scene twice in memory: the second save must match the first
+// (exit code 1 if not). The saved scenes go to debug/scenes/, to compare editor versions.
 
 #include <cctype>
 #include <cstdio>
@@ -31,6 +34,7 @@
 #include "Project.h"
 #include "ProjectExport.h"
 #include "SceneExporter.h"
+#include "SceneSerializer.h"
 
 namespace {
 
@@ -228,6 +232,35 @@ int main(int argc, char **argv) {
 }
 )";
 
+// Loads and saves every scene file (in memory), and loads and saves the result again: both
+// texts must be the same. Writes the saved text to `outDir` for comparing exporter versions.
+// Returns how many scenes failed.
+int roundTripScenes(const Project& project, const std::filesystem::path& outDir) {
+    int failed = 0;
+    std::error_code ec;
+    std::filesystem::create_directories(outDir, ec);
+    for (const auto& entry : std::filesystem::directory_iterator(project.scenesDir(), ec)) {
+        if (entry.path().extension() != kSceneExtension) {
+            continue;
+        }
+        Scene first;
+        Scene second;
+        std::string error;
+        if (!loadSceneFile(entry.path(), first, error)) {
+            logError("Round trip: " + entry.path().filename().string() + ": " + error);
+            ++failed;
+            continue;
+        }
+        const std::string saved = serializeScene(first);
+        if (!deserializeScene(saved, second, error) || serializeScene(second) != saved) {
+            logError("Round trip: " + entry.path().filename().string() + " changes when saved again " + error);
+            ++failed;
+        }
+        write(outDir / entry.path().filename(), saved);
+    }
+    return failed;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -247,6 +280,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     const std::filesystem::path debug = projectExportDir(project) / "debug";
+    if (roundTripScenes(project, debug / "scenes") > 0) {
+        return 1;
+    }
     const std::string marker = kGeneratedMarker;
     if (!write(debug / "debug_scenes.h", marker + kDebugHeader) || !write(debug / "debug_scenes.c", debugScenes(scenes)) ||
         !write(debug / "debug_main.c", marker + kDebugMain)) {

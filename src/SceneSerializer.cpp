@@ -21,27 +21,26 @@ constexpr int kVersion = 1;
 } // namespace
 
 std::string serializeScene(const Scene& scene) {
-    const entt::registry& registry = scene.registry();
-
-    std::unordered_map<entt::entity, int> ids;
-    for (const entt::entity e : scene.entities()) {
-        ids.emplace(e, static_cast<int>(ids.size()));
+    // Files number the entities in order.
+    std::unordered_map<EntityId, int> ids;
+    for (const Entity& e : scene.entities()) {
+        ids.emplace(e.id, static_cast<int>(ids.size()));
     }
 
     json entities = json::array();
-    for (const entt::entity e : scene.entities()) {
-        json entry{{"id", ids.at(e)}, {"name", registry.get<NameComponent>(e).name}};
-        if (scene.isWorld(e)) {
+    for (const Entity& e : scene.entities()) {
+        json entry{{"id", ids.at(e.id)}, {"name", e.name}};
+        if (scene.isWorld(e.id)) {
             entry["world"] = true;
-        } else if (scene.isCanvas(e)) {
+        } else if (scene.isCanvas(e.id)) {
             entry["canvas"] = true;
         } else {
-            entry["origin"] = ids.at(scene.parentOf(e));
+            entry["origin"] = ids.at(e.parent);
         }
         json components = json::object();
         for (const ComponentType& type : componentTypes()) {
-            if (type.has(registry, e)) {
-                type.save(registry, e, components[type.key]);
+            if (type.has(e)) {
+                type.save(e, components[type.key]);
             }
         }
         entry["components"] = std::move(components);
@@ -73,9 +72,8 @@ bool deserializeScene(const std::string& text, Scene& out, std::string& error) {
     }
 
     Scene scene;
-    entt::registry& registry = scene.registry();
-    std::unordered_map<int, entt::entity> byId;
-    std::vector<std::pair<entt::entity, const json*>> loaded;
+    std::unordered_map<int, EntityId> byNumber;
+    std::vector<std::pair<EntityId, const json*>> loaded;
 
     // Pass 1: create entities (in file order, which is sibling order) and their components.
     for (const json& entry : *entitiesIt) {
@@ -83,35 +81,36 @@ bool deserializeScene(const std::string& text, Scene& out, std::string& error) {
             error = "entity without an integer \"id\"";
             return false;
         }
-        const int id = entry["id"].get<int>();
-        if (byId.contains(id)) {
-            error = "duplicate entity id " + std::to_string(id);
+        const int number = entry["id"].get<int>();
+        if (byNumber.contains(number)) {
+            error = "duplicate entity id " + std::to_string(number);
             return false;
         }
         const std::string name = entry.value("name", "");
 
-        entt::entity e = entt::null;
+        EntityId id = kNoEntity;
         if (entry.value("world", false)) {
-            e = scene.world();
-            registry.get<NameComponent>(e).name = name.empty() ? "World" : name;
+            id = scene.world();
+            scene.get(id).name = name.empty() ? "World" : name;
         } else if (entry.value("canvas", false)) {
-            e = scene.canvas();
-            registry.get<NameComponent>(e).name = name.empty() ? "Canvas" : name;
+            id = scene.canvas();
+            scene.get(id).name = name.empty() ? "Canvas" : name;
         } else {
-            e = scene.createEntity(name);
-            loaded.emplace_back(e, &entry);
+            id = scene.createEntity(name);
+            loaded.emplace_back(id, &entry);
         }
-        byId.emplace(id, e);
+        byNumber.emplace(number, id);
 
         if (const auto components = entry.find("components"); components != entry.end() && components->is_object()) {
+            Entity& e = scene.get(id);
             for (const ComponentType& type : componentTypes()) {
                 if (const auto data = components->find(type.key); data != components->end() && data->is_object()) {
-                    type.load(registry, e, *data);
+                    type.load(e, *data);
                 }
             }
             // A UI element: it was created as a scene entity, so drop the Transform.
-            if (!scene.isRoot(e) && registry.all_of<UIRectTransformComponent>(e)) {
-                registry.remove<TransformComponent>(e);
+            if (!scene.isRoot(e.id) && e.rectTransform) {
+                e.transform.reset();
             }
             for (const auto& [key, value] : components->items()) {
                 const bool known = std::any_of(componentTypes().begin(), componentTypes().end(),
@@ -125,19 +124,19 @@ bool deserializeScene(const std::string& text, Scene& out, std::string& error) {
 
     // Pass 2: parents, now that every id is known. Offsets are kept as stored.
     for (const auto& [e, entry] : loaded) {
-        const entt::entity root = scene.isUI(e) ? scene.canvas() : scene.world();
-        entt::entity origin = root;
+        const EntityId root = scene.isUI(e) ? scene.canvas() : scene.world();
+        EntityId origin = root;
         if (const auto it = entry->find("origin"); it != entry->end() && it->is_number_integer()) {
-            if (const auto found = byId.find(it->get<int>()); found != byId.end()) {
+            if (const auto found = byNumber.find(it->get<int>()); found != byNumber.end()) {
                 origin = found->second;
             }
         }
         if (!scene.canSetOrigin(e, origin)) {
-            logWarning("Scene file: '" + registry.get<NameComponent>(e).name + "' has an invalid origin; attached to " +
-                       registry.get<NameComponent>(root).name + " instead");
+            logWarning("Scene file: '" + scene.get(e).name + "' has an invalid origin; attached to " +
+                       scene.get(root).name + " instead");
             origin = root;
         }
-        scene.setParentRaw(e, origin);
+        scene.get(e).parent = origin;
     }
 
     out = std::move(scene);

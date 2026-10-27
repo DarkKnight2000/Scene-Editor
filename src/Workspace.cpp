@@ -1097,7 +1097,7 @@ bool Workspace::computeDirty(Document& doc) {
 
 bool Workspace::isPristine(Document& doc) {
     const bool onlyRoots = std::all_of(doc.scene.entities().begin(), doc.scene.entities().end(),
-                                       [&](entt::entity e) { return doc.scene.isRoot(e); });
+                                       [&](const Entity& e) { return doc.scene.isRoot(e.id); });
     return doc.path.empty() && onlyRoots && !doc.history.canUndo() && !computeDirty(doc);
 }
 

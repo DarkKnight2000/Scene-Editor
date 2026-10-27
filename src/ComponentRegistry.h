@@ -1,11 +1,13 @@
 #pragma once
 
-#include <entt/entt.hpp>
 #include <nlohmann/json_fwd.hpp>
 
 #include <span>
 
+#include "Components.h"
+
 class Scene;
+struct Entity;
 
 namespace ui {
 class PropertyGrid;
@@ -23,18 +25,18 @@ struct ComponentType {
     bool removable; // core components (Transform, UIRectTransform) can't be removed or added
     ComponentScope scope;
 
-    bool (*has)(const entt::registry&, entt::entity);
-    void (*add)(entt::registry&, entt::entity);
-    void (*remove)(entt::registry&, entt::entity);
-    void (*drawFields)(Scene&, entt::entity, ui::PropertyGrid&);
+    bool (*has)(const Entity&);
+    void (*add)(Entity&);
+    void (*remove)(Entity&);
+    void (*drawFields)(Scene&, Entity&, ui::PropertyGrid&);
 
     // Scene file I/O. `load` adds the component if missing; absent fields keep their defaults.
-    void (*save)(const entt::registry&, entt::entity, nlohmann::ordered_json&);
-    void (*load)(entt::registry&, entt::entity, const nlohmann::ordered_json&);
+    void (*save)(const Entity&, nlohmann::ordered_json&);
+    void (*load)(Entity&, const nlohmann::ordered_json&);
 };
 
 // All component types shown in the Details panel, in display order.
 std::span<const ComponentType> componentTypes();
 
 // Icon for an entity in the Entities and Details panels: World, Canvas, UI element or entity.
-int entityIcon(const Scene& scene, entt::entity entity);
+int entityIcon(const Scene& scene, EntityId entity);

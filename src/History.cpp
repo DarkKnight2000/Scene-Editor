@@ -15,20 +15,19 @@ using json = nlohmann::ordered_json;
 constexpr std::size_t kMaxSteps = 500;
 constexpr std::size_t kMaxBytes = 8 * 1024 * 1024;
 
-// Everything needed to restore one entity: name, parent (stable id), position among
-// siblings and all components.
-std::string capture(const Scene& scene, entt::entity e) {
-    const entt::registry& registry = scene.registry();
+// Everything needed to restore one entity: name, parent, position among siblings and all
+// components.
+std::string capture(const Scene& scene, EntityId id) {
+    const Entity& e = scene.get(id);
     json j;
-    j["name"] = registry.get<NameComponent>(e).name;
-    const entt::entity origin = scene.parentOf(e);
-    j["origin"] = registry.valid(origin) ? scene.idOf(origin) : StableId{0};
-    j["index"] = scene.orderIndex(e);
+    j["name"] = e.name;
+    j["origin"] = e.parent;
+    j["index"] = scene.orderIndex(id);
     json& components = j["components"];
     components = json::object();
     for (const ComponentType& type : componentTypes()) {
-        if (type.has(registry, e)) {
-            type.save(registry, e, components[type.key]);
+        if (type.has(e)) {
+            type.save(e, components[type.key]);
         }
     }
     return j.dump();
@@ -39,9 +38,9 @@ bool isIdle() {
 }
 } // namespace
 
-void History::beginFrame(const Scene& scene, entt::entity watched) {
-    const bool watchable = watched != entt::null && scene.registry().valid(watched);
-    const StableId id = watchable ? scene.idOf(watched) : 0;
+void History::beginFrame(const Scene& scene, EntityId watched) {
+    const bool watchable = scene.contains(watched);
+    const EntityId id = watchable ? watched : kNoEntity;
 
     // Selection moved on while an edit was open: finish it.
     if (m_pendingOpen && id != m_pendingId) {
@@ -52,13 +51,13 @@ void History::beginFrame(const Scene& scene, entt::entity watched) {
 }
 
 void History::endFrame(const Scene& scene) {
-    if (m_watchId != 0) {
-        const entt::entity e = scene.findById(m_watchId);
-        if (e == entt::null) {
+    if (m_watchId != kNoEntity) {
+        const Entity* e = scene.find(m_watchId);
+        if (e == nullptr) {
             // Deleted this frame; destroyEntity recorded it.
             m_pendingOpen = false;
         } else {
-            std::string now = capture(scene, e);
+            std::string now = capture(scene, m_watchId);
             if (now != m_watchBefore) {
                 if (!m_pendingOpen) {
                     m_pendingOpen = true;
@@ -66,7 +65,7 @@ void History::endFrame(const Scene& scene) {
                     m_pendingBefore = m_watchBefore;
                 }
                 m_pendingAfter = std::move(now);
-                m_pendingName = scene.registry().get<NameComponent>(e).name;
+                m_pendingName = e->name;
             }
         }
     }
@@ -91,42 +90,42 @@ void History::commitPending() {
     push(std::move(step));
 }
 
-entt::entity History::createEntity(Scene& scene) {
+EntityId History::createEntity(Scene& scene) {
     commitPending();
-    const entt::entity e = scene.createEntity();
+    const EntityId e = scene.createEntity();
     recordCreation(scene, e);
     return e;
 }
 
-entt::entity History::createUIElement(Scene& scene, entt::entity parent) {
+EntityId History::createUIElement(Scene& scene, EntityId parent) {
     commitPending();
-    const entt::entity e = scene.createUIElement(parent);
+    const EntityId e = scene.createUIElement(parent);
     recordCreation(scene, e);
     return e;
 }
 
-void History::recordCreation(const Scene& scene, entt::entity e) {
+void History::recordCreation(const Scene& scene, EntityId e) {
     Step step;
-    step.label = "Create " + scene.registry().get<NameComponent>(e).name;
-    step.changes.push_back({scene.idOf(e), std::nullopt, capture(scene, e)});
+    step.label = "Create " + scene.get(e).name;
+    step.changes.push_back({e, std::nullopt, capture(scene, e)});
     push(std::move(step));
 }
 
-void History::destroyEntity(Scene& scene, entt::entity entity) {
-    if (scene.isRoot(entity) || !scene.registry().valid(entity)) {
+void History::destroyEntity(Scene& scene, EntityId entity) {
+    if (scene.isRoot(entity) || !scene.contains(entity)) {
         return;
     }
     commitPending();
 
     // The entity itself plus its direct followers, which get re-attached.
     Step step;
-    step.label = "Delete " + scene.registry().get<NameComponent>(entity).name;
-    step.changes.push_back({scene.idOf(entity), capture(scene, entity), std::nullopt});
-    std::vector<entt::entity> followers;
-    for (const entt::entity other : scene.entities()) {
-        if (scene.parentOf(other) == entity) {
-            followers.push_back(other);
-            step.changes.push_back({scene.idOf(other), capture(scene, other), std::nullopt});
+    step.label = "Delete " + scene.get(entity).name;
+    step.changes.push_back({entity, capture(scene, entity), std::nullopt});
+    std::vector<EntityId> followers;
+    for (const Entity& other : scene.entities()) {
+        if (other.parent == entity) {
+            followers.push_back(other.id);
+            step.changes.push_back({other.id, capture(scene, other.id), std::nullopt});
         }
     }
 
@@ -138,7 +137,7 @@ void History::destroyEntity(Scene& scene, entt::entity entity) {
     push(std::move(step));
 }
 
-bool History::undo(Scene& scene, entt::entity& selected) {
+bool History::undo(Scene& scene, EntityId& selected) {
     commitPending();
     if (m_undo.empty()) {
         return false;
@@ -151,7 +150,7 @@ bool History::undo(Scene& scene, entt::entity& selected) {
     return true;
 }
 
-bool History::redo(Scene& scene, entt::entity& selected) {
+bool History::redo(Scene& scene, EntityId& selected) {
     commitPending();
     if (m_redo.empty()) {
         return false;
@@ -169,7 +168,7 @@ void History::clear() {
     m_redo.clear();
     m_bytes = 0;
     m_pendingOpen = false;
-    m_watchId = 0;
+    m_watchId = kNoEntity;
 }
 
 void History::push(Step step) {
@@ -196,14 +195,13 @@ void History::trim() {
     }
 }
 
-void History::apply(Scene& scene, const Step& step, bool undo, entt::entity& selected) {
-    entt::registry& registry = scene.registry();
+void History::apply(Scene& scene, const Step& step, bool undo, EntityId& selected) {
     struct Target {
-        entt::entity entity;
+        EntityId entity;
         json state;
     };
     std::vector<Target> targets;
-    std::vector<StableId> removals;
+    std::vector<EntityId> removals;
 
     // 1. Make sure every entity that should exist does, so origins can be resolved.
     for (const Change& change : step.changes) {
@@ -212,30 +210,30 @@ void History::apply(Scene& scene, const Step& step, bool undo, entt::entity& sel
             removals.push_back(change.id);
             continue;
         }
-        entt::entity e = scene.findById(change.id);
-        if (e == entt::null) {
-            e = scene.createWithId(change.id);
+        if (!scene.contains(change.id)) {
+            scene.createWithId(change.id);
         }
-        targets.push_back({e, json::parse(*state)});
+        targets.push_back({change.id, json::parse(*state)});
     }
 
     // 2. Name, components and parent. A state lists all of the entity's components, so
-    // anything else goes (including the Transform a re-created UI element starts with).
+    // anything else goes.
     for (const Target& t : targets) {
-        registry.get<NameComponent>(t.entity).name = t.state.value("name", "");
+        Entity& e = scene.get(t.entity);
+        e.name = t.state.value("name", "");
         const json& components = t.state["components"];
         for (const ComponentType& type : componentTypes()) {
             const auto it = components.find(type.key);
             if (it != components.end()) {
-                type.load(registry, t.entity, *it);
-            } else if ((type.removable || !scene.isRoot(t.entity)) && type.has(registry, t.entity)) {
-                type.remove(registry, t.entity);
+                type.load(e, *it);
+            } else if ((type.removable || !scene.isRoot(t.entity)) && type.has(e)) {
+                type.remove(e);
             }
         }
         if (!scene.isRoot(t.entity)) {
-            const entt::entity origin = scene.findById(t.state.value("origin", StableId{0}));
-            const entt::entity root = scene.isUI(t.entity) ? scene.canvas() : scene.world();
-            scene.setParentRaw(t.entity, origin != entt::null ? origin : root);
+            const EntityId origin = t.state.value("origin", kNoEntity);
+            const EntityId root = e.rectTransform ? scene.canvas() : scene.world();
+            e.parent = scene.contains(origin) ? origin : root;
         }
     }
 
@@ -252,8 +250,8 @@ void History::apply(Scene& scene, const Step& step, bool undo, entt::entity& sel
     }
 
     // 4. Entities that shouldn't exist in this state.
-    for (const StableId id : removals) {
-        scene.destroyRaw(scene.findById(id));
+    for (const EntityId id : removals) {
+        scene.destroyRaw(id);
     }
 
     // Select what changed so the user sees the result.

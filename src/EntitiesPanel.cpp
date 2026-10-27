@@ -35,7 +35,7 @@ bool plusButton(Rectangle bounds, const char* tooltip) {
 }
 } // namespace
 
-void EntitiesPanel::draw(Rectangle panel, Rectangle content, Scene& scene, History& history, entt::entity& selected) {
+void EntitiesPanel::draw(Rectangle panel, Rectangle content, Scene& scene, History& history, EntityId& selected) {
     drawList(content, scene, selected);
 
     // Add button, right-aligned in the panel header. Drawn last so its tooltip stays on top.
@@ -43,7 +43,7 @@ void EntitiesPanel::draw(Rectangle panel, Rectangle content, Scene& scene, Histo
     // otherwise an entity under the World.
     const float pad = (kHeaderHeight - kAddButtonSize) / 2.0f;
     const Rectangle addBounds{panel.x + panel.width - kAddButtonSize - 6.0f, panel.y + pad, kAddButtonSize, kAddButtonSize};
-    const bool addUI = selected != entt::null && scene.registry().valid(selected) && scene.isUI(selected);
+    const bool addUI = scene.contains(selected) && scene.isUI(selected);
     if (plusButton(addBounds, addUI ? "Add UI element inside the selection" : "Add entity")) {
         selected = addUI ? history.createUIElement(scene, selected) : history.createEntity(scene);
         // Scroll just enough to show the new row.
@@ -54,7 +54,7 @@ void EntitiesPanel::draw(Rectangle panel, Rectangle content, Scene& scene, Histo
     }
 }
 
-void EntitiesPanel::drawList(Rectangle content, Scene& scene, entt::entity& selected) {
+void EntitiesPanel::drawList(Rectangle content, Scene& scene, EntityId& selected) {
     const std::vector<HierarchyRow> rows = scene.hierarchy();
     const float listHeight = kRowHeight * static_cast<float>(rows.size());
 
@@ -73,15 +73,15 @@ void EntitiesPanel::drawList(Rectangle content, Scene& scene, entt::entity& sele
         const int i = rel < 0.0f ? -1 : static_cast<int>(rel / kRowHeight);
         if (i >= 0 && i < static_cast<int>(rows.size())) {
             selected = rows[static_cast<std::size_t>(i)].entity;
-            m_pressed = scene.isRoot(selected) ? entt::null : selected; // the roots can't move
+            m_pressed = scene.isRoot(selected) ? kNoEntity : selected; // the roots can't move
             m_pressPos = mouse;
         }
     }
 
     DropTarget drop;
-    if (m_pressed != entt::null) {
-        if (!scene.registry().valid(m_pressed) || IsKeyPressed(KEY_ESCAPE)) {
-            m_pressed = entt::null;
+    if (m_pressed != kNoEntity) {
+        if (!scene.contains(m_pressed) || IsKeyPressed(KEY_ESCAPE)) {
+            m_pressed = kNoEntity;
             m_dragging = false;
         } else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             if (!m_dragging && Vector2Distance(mouse, m_pressPos) > 4.0f) {
@@ -94,7 +94,7 @@ void EntitiesPanel::drawList(Rectangle content, Scene& scene, entt::entity& sele
                     scene.moveEntity(m_pressed, target.origin, target.before);
                 }
             }
-            m_pressed = entt::null;
+            m_pressed = kNoEntity;
             m_dragging = false;
         }
     }
@@ -118,7 +118,7 @@ void EntitiesPanel::drawList(Rectangle content, Scene& scene, entt::entity& sele
     ui::pushClip(dropArea);
     std::vector<float> parentBottom; // bottom edge of the most recent row at each depth
     for (std::size_t i = 0; i < rows.size(); ++i) {
-        const entt::entity entity = rows[i].entity;
+        const EntityId entity = rows[i].entity;
         const float indent = kIndent * static_cast<float>(rows[i].depth);
         const Rectangle row{view.x, view.y + m_scroll.y + kRowHeight * static_cast<float>(i), view.width,
                             kRowHeight};
@@ -150,7 +150,7 @@ void EntitiesPanel::drawList(Rectangle content, Scene& scene, entt::entity& sele
         }
         GuiDrawIcon(entityIcon(scene, entity), static_cast<int>(row.x + indent) + 8,
                     static_cast<int>(row.y + (kRowHeight - 16.0f) / 2.0f), 1, iconColor);
-        const std::string& name = scene.registry().get<NameComponent>(entity).name;
+        const std::string& name = scene.get(entity).name;
         ui::drawText(theme::font(), name.c_str(), {row.x + indent + 32.0f, row.y + (kRowHeight - theme::kFontSize) / 2.0f},
                      theme::kFontSize, textColor);
     }
@@ -179,7 +179,7 @@ EntitiesPanel::DropTarget EntitiesPanel::findDropTarget(const Scene& scene, cons
         return target;
     }
 
-    const auto originOf = [&](entt::entity e) { return scene.parentOf(e); };
+    const auto originOf = [&](EntityId e) { return scene.parentOf(e); };
     const auto lineAt = [&](float y, int depth) {
         target.lineStart = {area.x + kIndent * static_cast<float>(depth) + 8.0f, y};
         target.lineEnd = area.x + area.width - 4.0f;
@@ -218,10 +218,10 @@ EntitiesPanel::DropTarget EntitiesPanel::findDropTarget(const Scene& scene, cons
             // After this row, as its sibling: just before its next sibling, or last.
             target.origin = originOf(row.entity);
             const auto& order = scene.entities();
-            auto it = std::find(order.begin(), order.end(), row.entity);
+            auto it = order.begin() + scene.orderIndex(row.entity);
             for (++it; it != order.end(); ++it) {
-                if (originOf(*it) == target.origin) {
-                    target.before = *it;
+                if (it->parent == target.origin) {
+                    target.before = it->id;
                     break;
                 }
             }
@@ -240,7 +240,7 @@ EntitiesPanel::DropTarget EntitiesPanel::findDropTarget(const Scene& scene, cons
 }
 
 void EntitiesPanel::drawDragGhost(const Scene& scene, Vector2 mouse) const {
-    const char* name = scene.registry().get<NameComponent>(m_pressed).name.c_str();
+    const char* name = scene.get(m_pressed).name.c_str();
     const float width = ui::textWidth(theme::font(), name, theme::kFontSize);
     const Rectangle box{mouse.x + 14.0f, mouse.y + 8.0f, width + 42.0f, kRowHeight};
 

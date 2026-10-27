@@ -21,17 +21,17 @@
 class History {
 public:
     // Watches `watched` for changes made during this frame.
-    void beginFrame(const Scene& scene, entt::entity watched);
+    void beginFrame(const Scene& scene, EntityId watched);
     void endFrame(const Scene& scene);
 
-    entt::entity createEntity(Scene& scene);
+    EntityId createEntity(Scene& scene);
     // A UI element under `parent` (the Canvas or another UI element).
-    entt::entity createUIElement(Scene& scene, entt::entity parent);
-    void destroyEntity(Scene& scene, entt::entity entity);
+    EntityId createUIElement(Scene& scene, EntityId parent);
+    void destroyEntity(Scene& scene, EntityId entity);
 
     // Applies the step and selects the entity it affected (or the World).
-    bool undo(Scene& scene, entt::entity& selected);
-    bool redo(Scene& scene, entt::entity& selected);
+    bool undo(Scene& scene, EntityId& selected);
+    bool redo(Scene& scene, EntityId& selected);
 
     bool canUndo() const { return !m_undo.empty(); }
     bool canRedo() const { return !m_redo.empty(); }
@@ -46,7 +46,7 @@ public:
 
 private:
     struct Change {
-        StableId id;
+        EntityId id;
         std::optional<std::string> before; // nullopt = entity didn't exist
         std::optional<std::string> after;
     };
@@ -56,10 +56,10 @@ private:
         std::size_t bytes = 0;
     };
 
-    void recordCreation(const Scene& scene, entt::entity e);
+    void recordCreation(const Scene& scene, EntityId e);
     void push(Step step);
     void commitPending();
-    void apply(Scene& scene, const Step& step, bool undo, entt::entity& selected);
+    void apply(Scene& scene, const Step& step, bool undo, EntityId& selected);
     void trim();
 
     std::deque<Step> m_undo;
@@ -67,10 +67,10 @@ private:
     std::size_t m_bytes = 0; // across both stacks
 
     // Watched entity for the current frame and the open (uncommitted) edit, if any.
-    StableId m_watchId = 0;
+    EntityId m_watchId = kNoEntity;
     std::string m_watchBefore; // state at the start of this frame
     bool m_pendingOpen = false;
-    StableId m_pendingId = 0;
+    EntityId m_pendingId = kNoEntity;
     std::string m_pendingBefore; // state when the edit started
     std::string m_pendingAfter;
     std::string m_pendingName;

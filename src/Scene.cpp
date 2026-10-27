@@ -1,7 +1,5 @@
 #include "Scene.h"
 
-#include "Components.h"
-
 #include <raymath.h>
 
 #include <algorithm>
@@ -69,132 +67,119 @@ void placeAt(UIRectTransformComponent& t, Rectangle parent, Rectangle target) {
 } // namespace
 
 Scene::Scene() {
-    m_world = m_registry.create();
-    m_registry.emplace<NameComponent>(m_world, "World");
-    m_registry.emplace<TransformComponent>(m_world);
-    m_registry.emplace<WorldTag>(m_world);
-    assignId(m_world, m_nextId++);
-    m_order.push_back(m_world);
-
-    m_canvas = m_registry.create();
-    m_registry.emplace<NameComponent>(m_canvas, "Canvas");
-    m_registry.emplace<CanvasTag>(m_canvas);
-    assignId(m_canvas, m_nextId++);
-    m_order.push_back(m_canvas);
+    add(kWorld, "World").transform.emplace();
+    add(kCanvas, "Canvas");
 }
 
-void Scene::assignId(entt::entity entity, StableId id) {
-    m_registry.emplace_or_replace<IdComponent>(entity, id);
-    m_byId[id] = entity;
+Entity& Scene::add(EntityId id, std::string name) {
+    Entity& e = m_entities.emplace_back();
+    e.id = id;
+    e.name = std::move(name);
     m_nextId = std::max(m_nextId, id + 1);
+    return e;
 }
 
-StableId Scene::idOf(entt::entity entity) const {
-    return m_registry.get<IdComponent>(entity).id;
-}
-
-entt::entity Scene::findById(StableId id) const {
-    const auto it = m_byId.find(id);
-    return it != m_byId.end() && m_registry.valid(it->second) ? it->second : entt::entity{entt::null};
-}
-
-bool Scene::isUI(entt::entity entity) const {
-    return isCanvas(entity) || (m_registry.valid(entity) && m_registry.all_of<UIRectTransformComponent>(entity));
-}
-
-entt::entity Scene::parentOf(entt::entity entity) const {
-    if (!m_registry.valid(entity) || isRoot(entity)) {
-        return entt::null;
+Entity* Scene::find(EntityId entity) {
+    for (Entity& e : m_entities) {
+        if (e.id == entity) {
+            return &e;
+        }
     }
-    if (const auto* ui = m_registry.try_get<UIRectTransformComponent>(entity)) {
-        return ui->parent;
-    }
-    if (const auto* t = m_registry.try_get<TransformComponent>(entity)) {
-        return t->origin;
-    }
-    return entt::null;
+    return nullptr;
 }
 
-void Scene::setParentRaw(entt::entity entity, entt::entity parent) {
-    if (auto* ui = m_registry.try_get<UIRectTransformComponent>(entity)) {
-        ui->parent = parent;
-    } else if (auto* t = m_registry.try_get<TransformComponent>(entity)) {
-        t->origin = parent;
+const Entity* Scene::find(EntityId entity) const {
+    return const_cast<Scene*>(this)->find(entity);
+}
+
+Entity& Scene::get(EntityId entity) {
+    return *find(entity);
+}
+
+const Entity& Scene::get(EntityId entity) const {
+    return *find(entity);
+}
+
+bool Scene::isUI(EntityId entity) const {
+    const Entity* e = find(entity);
+    return isCanvas(entity) || (e != nullptr && e->rectTransform);
+}
+
+EntityId Scene::parentOf(EntityId entity) const {
+    const Entity* e = find(entity);
+    return e != nullptr ? e->parent : kNoEntity;
+}
+
+int Scene::orderIndex(EntityId entity) const {
+    for (std::size_t i = 0; i < m_entities.size(); ++i) {
+        if (m_entities[i].id == entity) {
+            return static_cast<int>(i);
+        }
     }
+    return -1;
 }
 
-int Scene::orderIndex(entt::entity entity) const {
-    const auto it = std::find(m_order.begin(), m_order.end(), entity);
-    return it == m_order.end() ? -1 : static_cast<int>(it - m_order.begin());
-}
-
-void Scene::setOrderIndex(entt::entity entity, int index) {
-    if (isRoot(entity)) {
+void Scene::setOrderIndex(EntityId entity, int index) {
+    const int from = orderIndex(entity);
+    if (isRoot(entity) || from < 0) {
         return;
     }
-    m_order.erase(std::remove(m_order.begin(), m_order.end(), entity), m_order.end());
-    index = std::clamp(index, 2, static_cast<int>(m_order.size())); // after the two roots
-    m_order.insert(m_order.begin() + index, entity);
+    Entity moved = std::move(m_entities[static_cast<std::size_t>(from)]);
+    m_entities.erase(m_entities.begin() + from);
+    index = std::clamp(index, 2, static_cast<int>(m_entities.size())); // after the two roots
+    m_entities.insert(m_entities.begin() + index, std::move(moved));
 }
 
-entt::entity Scene::createWithId(StableId id) {
-    const entt::entity entity = m_registry.create();
-    m_registry.emplace<NameComponent>(entity);
-    m_registry.emplace<TransformComponent>(entity).origin = m_world;
-    assignId(entity, id);
-    m_order.push_back(entity);
-    return entity;
+Entity& Scene::createWithId(EntityId id) {
+    return add(id, {});
 }
 
-void Scene::destroyRaw(entt::entity entity) {
-    if (isRoot(entity) || !m_registry.valid(entity)) {
+void Scene::destroyRaw(EntityId entity) {
+    const int index = orderIndex(entity);
+    if (isRoot(entity) || index < 0) {
         return;
     }
-    m_byId.erase(idOf(entity));
-    m_order.erase(std::remove(m_order.begin(), m_order.end(), entity), m_order.end());
-    m_registry.destroy(entity);
+    m_entities.erase(m_entities.begin() + index);
 }
 
-entt::entity Scene::createEntity(std::string name) {
+EntityId Scene::createEntity(std::string name) {
     ++m_createdCount;
     if (name.empty()) {
         name = "Entity " + std::to_string(m_createdCount);
     }
-
-    const entt::entity entity = m_registry.create();
-    m_registry.emplace<NameComponent>(entity, std::move(name));
-    m_registry.emplace<TransformComponent>(entity).origin = m_world;
-    assignId(entity, m_nextId++);
-    m_order.push_back(entity);
-    return entity;
+    Entity& e = add(m_nextId, std::move(name));
+    e.parent = kWorld;
+    e.transform.emplace();
+    return e.id;
 }
 
-entt::entity Scene::createUIElement(entt::entity parent, std::string name) {
+EntityId Scene::createUIElement(EntityId parent, std::string name) {
     ++m_createdUICount;
     if (name.empty()) {
         name = "UI Element " + std::to_string(m_createdUICount);
     }
-
-    const entt::entity entity = m_registry.create();
-    m_registry.emplace<NameComponent>(entity, std::move(name));
-    m_registry.emplace<UIRectTransformComponent>(entity).parent = isUI(parent) ? parent : m_canvas;
-    assignId(entity, m_nextId++);
-    m_order.push_back(entity);
-    return entity;
+    const EntityId parentId = isUI(parent) ? parent : kCanvas;
+    Entity& e = add(m_nextId, std::move(name));
+    e.parent = parentId;
+    e.rectTransform.emplace();
+    return e.id;
 }
 
-bool Scene::destroyEntity(entt::entity entity) {
-    if (isRoot(entity) || !m_registry.valid(entity)) {
+bool Scene::destroyEntity(EntityId entity) {
+    if (isRoot(entity) || !contains(entity)) {
         return false;
     }
 
     // Re-attach followers to this entity's own parent without moving them.
-    const entt::entity parent = parentOf(entity);
-    const entt::entity root = isUI(entity) ? m_canvas : m_world;
-    for (const entt::entity other : m_order) {
-        if (parentOf(other) == entity) {
-            setOrigin(other, m_registry.valid(parent) ? parent : root);
+    const EntityId parent = parentOf(entity);
+    std::vector<EntityId> followers;
+    for (const Entity& other : m_entities) {
+        if (other.parent == entity) {
+            followers.push_back(other.id);
         }
+    }
+    for (const EntityId follower : followers) {
+        setOrigin(follower, parent);
     }
 
     destroyRaw(entity);
@@ -202,20 +187,19 @@ bool Scene::destroyEntity(entt::entity entity) {
 }
 
 std::vector<HierarchyRow> Scene::hierarchy() const {
-    std::unordered_map<entt::entity, std::vector<entt::entity>> children;
-    for (const entt::entity e : m_order) {
-        if (isRoot(e)) {
+    std::unordered_map<EntityId, std::vector<EntityId>> children;
+    for (const Entity& e : m_entities) {
+        if (isRoot(e.id)) {
             continue;
         }
-        const entt::entity parent = parentOf(e);
-        children[m_registry.valid(parent) ? parent : (isUI(e) ? m_canvas : m_world)].push_back(e);
+        children[contains(e.parent) ? e.parent : (e.rectTransform ? kCanvas : kWorld)].push_back(e.id);
     }
 
     std::vector<HierarchyRow> rows;
-    rows.reserve(m_order.size());
+    rows.reserve(m_entities.size());
     // Depth-first, iterative; push children in reverse so they pop in creation order.
     // The roots go on in reverse too: World's tree first, then the Canvas's.
-    std::vector<HierarchyRow> stack{{m_canvas, 0}, {m_world, 0}};
+    std::vector<HierarchyRow> stack{{kCanvas, 0}, {kWorld, 0}};
     while (!stack.empty()) {
         const HierarchyRow row = stack.back();
         stack.pop_back();
@@ -229,47 +213,45 @@ std::vector<HierarchyRow> Scene::hierarchy() const {
     return rows;
 }
 
-Pose Scene::finalPose(entt::entity entity) const {
-    const auto& world = m_registry.get<TransformComponent>(m_world);
+Pose Scene::finalPose(EntityId entity) const {
+    const TransformComponent& world = *get(kWorld).transform;
     Pose pose{world.position, world.rotation, world.scale};
 
     // Collect the chain up to (not including) the World, then apply it top-down.
-    entt::entity chain[kMaxOriginDepth];
+    const TransformComponent* chain[kMaxOriginDepth];
     int count = 0;
-    for (entt::entity e = entity; count < kMaxOriginDepth && m_registry.valid(e) && !isWorld(e) &&
-                                  m_registry.all_of<TransformComponent>(e);
-         e = m_registry.get<TransformComponent>(e).origin) {
-        chain[count++] = e;
+    for (const Entity* e = find(entity); count < kMaxOriginDepth && e != nullptr && !isWorld(e->id) && e->transform;
+         e = find(e->parent)) {
+        chain[count++] = &*e->transform;
     }
     for (int i = count - 1; i >= 0; --i) {
-        pose = compose(pose, m_registry.get<TransformComponent>(chain[i]));
+        pose = compose(pose, *chain[i]);
     }
     return pose;
 }
 
-Rectangle Scene::uiRect(entt::entity entity, Vector2 canvasSize) const {
+Rectangle Scene::uiRect(EntityId entity, Vector2 canvasSize) const {
     Rectangle rect{0.0f, 0.0f, canvasSize.x, canvasSize.y};
 
     // Collect the chain up to (not including) the Canvas, then lay it out top-down.
-    entt::entity chain[kMaxOriginDepth];
+    const UIRectTransformComponent* chain[kMaxOriginDepth];
     int count = 0;
-    for (entt::entity e = entity; count < kMaxOriginDepth && m_registry.valid(e) && !isCanvas(e) &&
-                                  m_registry.all_of<UIRectTransformComponent>(e);
-         e = m_registry.get<UIRectTransformComponent>(e).parent) {
-        chain[count++] = e;
+    for (const Entity* e = find(entity); count < kMaxOriginDepth && e != nullptr && !isCanvas(e->id) && e->rectTransform;
+         e = find(e->parent)) {
+        chain[count++] = &*e->rectTransform;
     }
     for (int i = count - 1; i >= 0; --i) {
-        rect = layout(rect, m_registry.get<UIRectTransformComponent>(chain[i]));
+        rect = layout(rect, *chain[i]);
     }
     return rect;
 }
 
-bool Scene::canSetOrigin(entt::entity entity, entt::entity origin) const {
-    if (isRoot(entity) || !m_registry.valid(origin) || isUI(entity) != isUI(origin)) {
+bool Scene::canSetOrigin(EntityId entity, EntityId origin) const {
+    if (isRoot(entity) || !contains(origin) || isUI(entity) != isUI(origin)) {
         return false;
     }
     // Walk up from the candidate; reaching `entity` means it already follows `entity`.
-    for (int depth = 0; depth < kMaxOriginDepth && m_registry.valid(origin); ++depth) {
+    for (int depth = 0; depth < kMaxOriginDepth && origin != kNoEntity; ++depth) {
         if (origin == entity) {
             return false;
         }
@@ -278,23 +260,24 @@ bool Scene::canSetOrigin(entt::entity entity, entt::entity origin) const {
     return true;
 }
 
-bool Scene::setOrigin(entt::entity entity, entt::entity origin) {
+bool Scene::setOrigin(EntityId entity, EntityId origin) {
     if (!canSetOrigin(entity, origin)) {
         return false;
     }
 
-    if (auto* ui = m_registry.try_get<UIRectTransformComponent>(entity)) {
+    Entity& e = get(entity);
+    if (e.rectTransform) {
         // Keep the rectangle where it is at the reference canvas size.
         const Rectangle target = uiRect(entity, m_uiReferenceSize);
-        ui->parent = origin;
-        placeAt(*ui, uiRect(origin, m_uiReferenceSize), target);
+        e.parent = origin;
+        placeAt(*e.rectTransform, uiRect(origin, m_uiReferenceSize), target);
         return true;
     }
 
     const Pose target = finalPose(entity);
     const Pose parent = finalPose(origin);
-    auto& t = m_registry.get<TransformComponent>(entity);
-    t.origin = origin;
+    TransformComponent& t = *e.transform;
+    e.parent = origin;
 
     // Solve compose(parent, t) == target for t's local values.
     const float rotation = parentRotation(parent, t);
@@ -306,33 +289,36 @@ bool Scene::setOrigin(entt::entity entity, entt::entity origin) {
     return true;
 }
 
-void Scene::placeEntity(entt::entity entity, Vector2 position) {
-    auto* t = isRoot(entity) ? nullptr : m_registry.try_get<TransformComponent>(entity);
-    if (t == nullptr) {
+void Scene::placeEntity(EntityId entity, Vector2 position) {
+    Entity* e = isRoot(entity) ? nullptr : find(entity);
+    if (e == nullptr || !e->transform) {
         return;
     }
     // Solve compose(parent, t).position == position for t's position.
-    const Pose parent = finalPose(t->origin);
-    const float rotation = parentRotation(parent, *t);
-    const Vector2 scale = parentScale(parent, *t);
+    TransformComponent& t = *e->transform;
+    const Pose parent = finalPose(e->parent);
+    const float rotation = parentRotation(parent, t);
+    const Vector2 scale = parentScale(parent, t);
     const Vector2 offset = Vector2Rotate(Vector2Subtract(position, parent.position), -rotation * DEG2RAD);
-    t->position = {divideOr(offset.x, scale.x, t->position.x), divideOr(offset.y, scale.y, t->position.y)};
+    t.position = {divideOr(offset.x, scale.x, t.position.x), divideOr(offset.y, scale.y, t.position.y)};
 }
 
-bool Scene::moveEntity(entt::entity entity, entt::entity newOrigin, entt::entity before) {
+bool Scene::moveEntity(EntityId entity, EntityId newOrigin, EntityId before) {
     if (isRoot(entity) || entity == before || isRoot(before)) {
         return false;
     }
-    if (before != entt::null && (!m_registry.valid(before) || parentOf(before) != newOrigin)) {
+    if (before != kNoEntity && (!contains(before) || parentOf(before) != newOrigin)) {
         return false;
     }
     if (!setOrigin(entity, newOrigin)) {
         return false;
     }
 
-    // Siblings are shown in m_order order, so moving within m_order is enough.
-    m_order.erase(std::remove(m_order.begin(), m_order.end(), entity), m_order.end());
-    const auto it = before == entt::null ? m_order.end() : std::find(m_order.begin(), m_order.end(), before);
-    m_order.insert(it, entity);
+    // Siblings are shown in entities() order, so moving within it is enough.
+    const int from = orderIndex(entity);
+    Entity moved = std::move(m_entities[static_cast<std::size_t>(from)]);
+    m_entities.erase(m_entities.begin() + from);
+    const int to = before == kNoEntity ? static_cast<int>(m_entities.size()) : orderIndex(before);
+    m_entities.insert(m_entities.begin() + to, std::move(moved));
     return true;
 }

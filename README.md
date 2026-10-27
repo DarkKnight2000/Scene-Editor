@@ -99,8 +99,8 @@ See [Entities](docs/entities.md) and [UI](docs/ui.md) for more.
 ## Building the editor
 
 The editor is C++20, built with [Meson](https://mesonbuild.com/). It needs a raylib
-source checkout (raylib and raygui are built into the build folder); EnTT and
-nlohmann/json come from `subprojects/`.
+source checkout (raylib and raygui are built into the build folder); nlohmann/json
+comes from `subprojects/`.
 
 ```bash
 meson setup build -Draylib_dir=path/to/raylib

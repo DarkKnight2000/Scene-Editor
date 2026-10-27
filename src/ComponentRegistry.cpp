@@ -78,8 +78,8 @@ void read(const json& j, const char* key, Color& out) {
     out = {channels[0], channels[1], channels[2], channels[3]};
 }
 
-// --- Per-component serialization. Transform's origin is saved by the scene serializer,
-// since it refers to another entity. ---
+// --- Per-component serialization. The parent is saved by the scene serializer, since it
+// refers to another entity. ---
 
 json toJson(const TransformComponent& t) {
     return {{"position", toJson(t.position)},
@@ -176,7 +176,6 @@ void fromJson(const json& j, PlatformerControllerComponent& p) {
     read(j, "maxFallSpeed", p.maxFallSpeed);
 }
 
-// The parent is saved by the scene serializer, like Transform's origin.
 json toJson(const UIRectTransformComponent& t) {
     return {{"anchorMin", toJson(t.anchorMin)},
             {"anchorMax", toJson(t.anchorMax)},
@@ -235,33 +234,30 @@ void colorRow(ui::PropertyGrid& grid, const char* label, Color& color) {
 }
 
 // Dropdown of entities `e` may follow: the World plus every entity that isn't `e` or one of its followers.
-void originRow(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    const entt::registry& reg = scene.registry();
-    auto& t = scene.registry().get<TransformComponent>(e);
-
+void originRow(Scene& scene, Entity& e, ui::PropertyGrid& grid) {
     std::vector<std::string> labels;
-    std::vector<entt::entity> candidates;
+    std::vector<EntityId> candidates;
     int current = 0;
-    for (const entt::entity other : scene.entities()) {
-        if (other == e || !scene.canSetOrigin(e, other)) {
+    for (const Entity& other : scene.entities()) {
+        if (other.id == e.id || !scene.canSetOrigin(e.id, other.id)) {
             continue;
         }
-        if (other == t.origin) {
+        if (other.id == e.parent) {
             current = static_cast<int>(candidates.size());
         }
-        labels.push_back(reg.get<NameComponent>(other).name);
-        candidates.push_back(other);
+        labels.push_back(other.name);
+        candidates.push_back(other.id);
     }
 
-    if (ui::combo(grid.row("Origin"), &t.origin, labels, &current)) {
-        scene.setOrigin(e, candidates[static_cast<std::size_t>(current)]);
+    if (ui::combo(grid.row("Origin"), &e.parent, labels, &current)) {
+        scene.setOrigin(e.id, candidates[static_cast<std::size_t>(current)]);
     }
 }
 
-void drawTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    if (scene.isWorld(e)) {
+void drawTransform(Scene& scene, Entity& e, ui::PropertyGrid& grid) {
+    TransformComponent& t = *e.transform;
+    if (scene.isWorld(e.id)) {
         // The World's transform moves, rotates and scales the whole scene.
-        auto& t = scene.registry().get<TransformComponent>(e);
         vec2Row(grid, "Position", t.position, 0.5f);
         ui::dragFloat(grid.row("Rotation"), &t.rotation, 0.5f, nullptr, "%.1f deg");
         vec2Row(grid, "Scale", t.scale, 0.01f);
@@ -269,8 +265,7 @@ void drawTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     }
     originRow(scene, e, grid);
 
-    auto& t = scene.registry().get<TransformComponent>(e);
-    const bool following = !scene.isWorld(t.origin);
+    const bool following = !scene.isWorld(e.parent);
     vec2Row(grid, following ? "Offset" : "Position", t.position, 0.5f);
     ui::dragFloat(grid.row("Rotation"), &t.rotation, 0.5f, nullptr, "%.1f deg");
     vec2Row(grid, "Scale", t.scale, 0.01f);
@@ -284,7 +279,7 @@ void drawTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
 
     if (following) {
         // Where the entity ends up after its parents (and the World) are applied.
-        const Pose pose = scene.finalPose(e);
+        const Pose pose = scene.finalPose(e.id);
         Rectangle x;
         Rectangle y;
         ui::splitHalves(grid.row("Final"), x, y);
@@ -294,8 +289,8 @@ void drawTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     }
 }
 
-void drawSprite(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    auto& s = scene.registry().get<SpriteComponent>(e);
+void drawSprite(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    SpriteComponent& s = *e.sprite;
     int shape = static_cast<int>(s.shape);
     if (ui::combo(grid.row("Shape"), &s.shape, {"Rectangle", "Circle", "Triangle"}, &shape)) {
         s.shape = static_cast<SpriteShape>(std::clamp(shape, 0, 2));
@@ -308,8 +303,8 @@ void drawSprite(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
               s.exported ? "to the C code" : "designer only", ui::styleColor(TEXT_COLOR_DISABLED));
 }
 
-void drawBoxCollider(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    auto& c = scene.registry().get<BoxColliderComponent>(e);
+void drawBoxCollider(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    BoxColliderComponent& c = *e.boxCollider;
     vec2Row(grid, "Offset", c.offset, 0.5f);
     vec2Row(grid, "Size", c.size, 0.5f);
     ui::checkbox(grid.row("Is Trigger"), &c.isTrigger);
@@ -322,8 +317,8 @@ void drawBoxCollider(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     c.restitution = std::clamp(c.restitution, 0.0f, 1.0f);
 }
 
-void drawRigidbody(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    auto& r = scene.registry().get<RigidbodyComponent>(e);
+void drawRigidbody(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    RigidbodyComponent& r = *e.rigidbody;
     int type = static_cast<int>(r.type);
     if (ui::combo(grid.row("Body Type"), &r.type, {"Static", "Kinematic", "Dynamic"}, &type)) {
         r.type = static_cast<BodyType>(std::clamp(type, 0, 2));
@@ -339,13 +334,13 @@ void drawRigidbody(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     r.angularDamping = std::max(r.angularDamping, 0.0f);
     ui::checkbox(grid.row("Fixed Rot."), &r.fixedRotation);
     ui::checkbox(grid.row("Bullet"), &r.isBullet);
-    if (!scene.registry().all_of<BoxColliderComponent>(e)) {
+    if (!e.boxCollider) {
         ui::label(grid.row(""), "Add a Box Collider to give it a shape.", ui::styleColor(TEXT_COLOR_DISABLED));
     }
 }
 
-void drawPlatformer(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    auto& p = scene.registry().get<PlatformerControllerComponent>(e);
+void drawPlatformer(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    PlatformerControllerComponent& p = *e.platformer;
     ui::dragFloat(grid.row("Move Speed"), &p.moveSpeed, 1.0f, nullptr, "%.0f /s");
     ui::dragFloat(grid.row("Acceleration"), &p.acceleration, 10.0f, nullptr, "%.0f /s^2");
     ui::dragFloat(grid.row("Air Control"), &p.airControl, 0.01f);
@@ -364,13 +359,12 @@ void drawPlatformer(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     p.maxFallSpeed = std::max(p.maxFallSpeed, 0.0f);
 
     // What it needs to move.
-    const auto* rb = scene.registry().try_get<RigidbodyComponent>(e);
-    if (rb == nullptr || rb->type != BodyType::Dynamic) {
+    if (!e.rigidbody || e.rigidbody->type != BodyType::Dynamic) {
         ui::label(grid.row(""), "Needs a dynamic Rigidbody.", ui::styleColor(TEXT_COLOR_DISABLED));
-    } else if (!rb->fixedRotation) {
+    } else if (!e.rigidbody->fixedRotation) {
         ui::label(grid.row(""), "Tip: turn on Fixed Rot. in the Rigidbody.", ui::styleColor(TEXT_COLOR_DISABLED));
     }
-    if (!scene.registry().all_of<BoxColliderComponent>(e)) {
+    if (!e.boxCollider) {
         ui::label(grid.row(""), "Needs a Box Collider to stand on things.", ui::styleColor(TEXT_COLOR_DISABLED));
     }
     ui::label(grid.row(""), "Keys: A / D or arrows, Space / W / Up", ui::styleColor(TEXT_COLOR_DISABLED));
@@ -430,8 +424,8 @@ void applyAnchorPreset(UIRectTransformComponent& t, const AnchorPreset& preset) 
     t.position = {0.0f, 0.0f};
 }
 
-void drawUIRectTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    auto& t = scene.registry().get<UIRectTransformComponent>(e);
+void drawUIRectTransform(Scene& scene, Entity& e, ui::PropertyGrid& grid) {
+    UIRectTransformComponent& t = *e.rectTransform;
 
     std::vector<std::string> labels;
     int current = kCustomPreset;
@@ -453,13 +447,13 @@ void drawUIRectTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     vec2Row(grid, "Size", t.size, 0.5f);
 
     // The resulting rectangle on a canvas of the design resolution.
-    const Rectangle r = scene.uiRect(e, scene.uiReferenceSize());
+    const Rectangle r = scene.uiRect(e.id, scene.uiReferenceSize());
     const Color dim = ui::styleColor(TEXT_COLOR_DISABLED);
     ui::label(grid.row("At design"), TextFormat("%.0f, %.0f   %.0f x %.0f", r.x, r.y, r.width, r.height), dim, true);
 }
 
-void drawUIRectangle(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    colorRow(grid, "Color", scene.registry().get<UIRectangleComponent>(e).color);
+void drawUIRectangle(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    colorRow(grid, "Color", e.uiRectangle->color);
 }
 
 void alignCombo(Rectangle r, TextAlign& align, const std::vector<std::string>& names) {
@@ -469,8 +463,8 @@ void alignCombo(Rectangle r, TextAlign& align, const std::vector<std::string>& n
     }
 }
 
-void drawUILabel(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
-    auto& l = scene.registry().get<UILabelComponent>(e);
+void drawUILabel(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    UILabelComponent& l = *e.uiLabel;
     ui::textField(grid.row("Text"), l.text);
     ui::dragFloat(grid.row("Font Size"), &l.fontSize, 0.25f);
     l.fontSize = std::max(l.fontSize, 1.0f);
@@ -483,38 +477,42 @@ void drawUILabel(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     alignCombo(v, l.alignV, {"Top", "Middle", "Bottom"});
 }
 
-template <typename T>
+// A component type for the Entity field `Field` (a std::optional of the component).
+template <auto Field>
 constexpr ComponentType makeType(const char* name, const char* key, int icon, bool removable, ComponentScope scope,
-                                 void (*drawFields)(Scene&, entt::entity, ui::PropertyGrid&)) {
+                                 void (*drawFields)(Scene&, Entity&, ui::PropertyGrid&)) {
     return ComponentType{
         name,
         key,
         icon,
         removable,
         scope,
-        [](const entt::registry& reg, entt::entity e) { return reg.all_of<T>(e); },
-        [](entt::registry& reg, entt::entity e) { reg.emplace_or_replace<T>(e); },
-        [](entt::registry& reg, entt::entity e) { reg.remove<T>(e); },
+        [](const Entity& e) { return (e.*Field).has_value(); },
+        [](Entity& e) { (e.*Field).emplace(); },
+        [](Entity& e) { (e.*Field).reset(); },
         drawFields,
-        [](const entt::registry& reg, entt::entity e, json& out) { out = toJson(reg.get<T>(e)); },
-        [](entt::registry& reg, entt::entity e, const json& in) { fromJson(in, reg.get_or_emplace<T>(e)); },
+        [](const Entity& e, json& out) { out = toJson(*(e.*Field)); },
+        [](Entity& e, const json& in) {
+            if (!(e.*Field)) {
+                (e.*Field).emplace();
+            }
+            fromJson(in, *(e.*Field));
+        },
     };
 }
 
 const std::array kTypes{
-    makeType<TransformComponent>("Transform", "transform", ICON_CURSOR_MOVE, false, ComponentScope::World,
-                                 drawTransform),
-    makeType<SpriteComponent>("Sprite", "sprite", ICON_FILETYPE_IMAGE, true, ComponentScope::World, drawSprite),
-    makeType<BoxColliderComponent>("Box Collider", "boxCollider", ICON_BOX_CORNERS_BIG, true, ComponentScope::World,
+    makeType<&Entity::transform>("Transform", "transform", ICON_CURSOR_MOVE, false, ComponentScope::World, drawTransform),
+    makeType<&Entity::sprite>("Sprite", "sprite", ICON_FILETYPE_IMAGE, true, ComponentScope::World, drawSprite),
+    makeType<&Entity::boxCollider>("Box Collider", "boxCollider", ICON_BOX_CORNERS_BIG, true, ComponentScope::World,
                                    drawBoxCollider),
-    makeType<RigidbodyComponent>("Rigidbody", "rigidbody", ICON_PLAYER_JUMP, true, ComponentScope::World, drawRigidbody),
-    makeType<PlatformerControllerComponent>("Platformer Controller", "platformer", ICON_PLAYER, true, ComponentScope::World,
-                                            drawPlatformer),
-    makeType<UIRectTransformComponent>("UI Rect Transform", "uiRectTransform", ICON_BOX_CENTER, false,
-                                       ComponentScope::UI, drawUIRectTransform),
-    makeType<UIRectangleComponent>("UI Rectangle", "uiRectangle", ICON_WINDOW, true, ComponentScope::UI,
-                                   drawUIRectangle),
-    makeType<UILabelComponent>("UI Label", "uiLabel", ICON_TEXT_A, true, ComponentScope::UI, drawUILabel),
+    makeType<&Entity::rigidbody>("Rigidbody", "rigidbody", ICON_PLAYER_JUMP, true, ComponentScope::World, drawRigidbody),
+    makeType<&Entity::platformer>("Platformer Controller", "platformer", ICON_PLAYER, true, ComponentScope::World,
+                                  drawPlatformer),
+    makeType<&Entity::rectTransform>("UI Rect Transform", "uiRectTransform", ICON_BOX_CENTER, false, ComponentScope::UI,
+                                     drawUIRectTransform),
+    makeType<&Entity::uiRectangle>("UI Rectangle", "uiRectangle", ICON_WINDOW, true, ComponentScope::UI, drawUIRectangle),
+    makeType<&Entity::uiLabel>("UI Label", "uiLabel", ICON_TEXT_A, true, ComponentScope::UI, drawUILabel),
 };
 
 } // namespace
@@ -523,7 +521,7 @@ std::span<const ComponentType> componentTypes() {
     return kTypes;
 }
 
-int entityIcon(const Scene& scene, entt::entity entity) {
+int entityIcon(const Scene& scene, EntityId entity) {
     if (scene.isWorld(entity)) {
         return ICON_HOUSE;
     }

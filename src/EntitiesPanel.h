@@ -13,21 +13,21 @@ class History;
 class EntitiesPanel {
 public:
     // `panel` is the whole panel including its header; the add button sits in the header.
-    void draw(Rectangle panel, Rectangle content, Scene& scene, History& history, entt::entity& selected);
+    void draw(Rectangle panel, Rectangle content, Scene& scene, History& history, EntityId& selected);
 
 private:
     // Where a dragged entity would land if dropped now.
     struct DropTarget {
         bool valid = false;
-        entt::entity origin = entt::null;
-        entt::entity before = entt::null; // null = last among the siblings
+        EntityId origin = kNoEntity;
+        EntityId before = kNoEntity; // kNoEntity = last among the siblings
         bool intoRow = false;             // highlight `rowRect` instead of drawing a line
         Rectangle rowRect{};
         Vector2 lineStart{};
         float lineEnd = 0.0f;
     };
 
-    void drawList(Rectangle content, Scene& scene, entt::entity& selected);
+    void drawList(Rectangle content, Scene& scene, EntityId& selected);
     // `area` is the list's on-screen area, including empty space below the last row.
     DropTarget findDropTarget(const Scene& scene, const std::vector<HierarchyRow>& rows, Rectangle area,
                               Vector2 mouse) const;
@@ -35,7 +35,7 @@ private:
 
     Vector2 m_scroll{};
 
-    entt::entity m_pressed = entt::null; // row under the mouse when the button went down
+    EntityId m_pressed = kNoEntity; // row under the mouse when the button went down
     Vector2 m_pressPos{};
     bool m_dragging = false;
 };

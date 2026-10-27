@@ -12,7 +12,7 @@
 // selection, undo history, file path, saved state and per-scene panel state.
 struct Document {
     Scene scene;
-    entt::entity selected = scene.world();
+    EntityId selected = scene.world();
     History history;
 
     EntitiesPanel entitiesPanel;

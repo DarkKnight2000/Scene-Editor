@@ -226,60 +226,56 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     const std::string prefix = "scene_" + id;
     const std::string type = sceneType(id);
     const std::string guard = "SCENE_" + upper(id) + "_H";
-    const entt::registry& registry = scene.registry();
-    const auto nameOf = [&](entt::entity e) -> const std::string& { return registry.get<NameComponent>(e).name; };
 
     // Scene entities in drawing order; scene entities and UI elements in tree order (parents
     // first: poses and rectangles are computed in that order).
-    std::vector<entt::entity> drawn;
-    for (const entt::entity e : scene.entities()) {
-        if (!scene.isRoot(e) && !scene.isUI(e)) {
-            drawn.push_back(e);
+    std::vector<const Entity*> drawn;
+    for (const Entity& e : scene.entities()) {
+        if (!scene.isRoot(e.id) && !e.rectTransform) {
+            drawn.push_back(&e);
         }
     }
-    std::vector<entt::entity> tree;
-    std::vector<entt::entity> ui;
+    std::vector<const Entity*> tree;
+    std::vector<const Entity*> ui;
     for (const HierarchyRow& row : scene.hierarchy()) {
         if (!scene.isRoot(row.entity)) {
-            (scene.isUI(row.entity) ? ui : tree).push_back(row.entity);
+            const Entity& e = scene.get(row.entity);
+            (e.rectTransform ? ui : tree).push_back(&e);
         }
     }
 
     // A field per entity and UI element, named after it.
     std::unordered_set<std::string> used{"world", "ui_font", "ui_canvas", "ui_scale", "physics_world", "physics_time"};
-    std::unordered_map<entt::entity, std::string> field;
-    for (const entt::entity e : drawn) {
-        field[e] = unique(fieldIdentifier(nameOf(e)), used);
+    std::unordered_map<EntityId, std::string> field;
+    for (const Entity* e : drawn) {
+        field[e->id] = unique(fieldIdentifier(e->name), used);
     }
-    for (const entt::entity e : ui) {
-        field[e] = unique(fieldIdentifier(nameOf(e)), used);
+    for (const Entity* e : ui) {
+        field[e->id] = unique(fieldIdentifier(e->name), used);
     }
-    const auto ref = [&](entt::entity e) { return "s->" + field.at(e); };
-    // The parent entity or element; entt::null for the World / the Canvas.
-    const auto parentOf = [&](entt::entity e) {
-        const entt::entity p = scene.parentOf(e);
-        return field.count(p) > 0 ? p : entt::entity{entt::null};
+    const auto ref = [&](const Entity* e) { return "s->" + field.at(e->id); };
+    // The parent entity or element; nullptr for the World / the Canvas.
+    const auto parentOf = [&](const Entity* e) -> const Entity* {
+        return field.count(e->parent) > 0 ? &scene.get(e->parent) : nullptr;
     };
 
     // Physics bodies: entities with a rigidbody or a collider (a collider alone: static), made
     // in drawing order.
-    std::vector<entt::entity> bodies;
+    std::vector<const Entity*> bodies;
     if (physics) {
-        for (const entt::entity e : drawn) {
-            if (registry.all_of<RigidbodyComponent>(e) || registry.all_of<BoxColliderComponent>(e)) {
+        for (const Entity* e : drawn) {
+            if (e->rigidbody || e->boxCollider) {
                 bodies.push_back(e);
             }
         }
     }
     bool anyLabel = false;
-    for (const entt::entity e : ui) {
-        anyLabel = anyLabel || registry.all_of<UILabelComponent>(e);
+    for (const Entity* e : ui) {
+        anyLabel = anyLabel || e->uiLabel;
     }
     // A platformer controller moves a dynamic body; without one there's nothing to move.
-    const auto hasPlatformer = [&](entt::entity e) {
-        const auto* rb = registry.try_get<RigidbodyComponent>(e);
-        return physics && registry.all_of<PlatformerControllerComponent>(e) && rb != nullptr &&
-               rb->type == BodyType::Dynamic;
+    const auto hasPlatformer = [&](const Entity* e) {
+        return physics && e->platformer && e->rigidbody && e->rigidbody->type == BodyType::Dynamic;
     };
 
     info = ExportedScene{};
@@ -290,23 +286,23 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     info.hasEntities = !drawn.empty();
     info.hasUI = !ui.empty();
     info.hasBodies = !bodies.empty();
-    for (const entt::entity e : drawn) {
-        info.entities.push_back(field.at(e));
-        if (registry.all_of<BoxColliderComponent>(e)) {
-            info.colliders.push_back(field.at(e));
+    for (const Entity* e : drawn) {
+        info.entities.push_back(field.at(e->id));
+        if (e->boxCollider) {
+            info.colliders.push_back(field.at(e->id));
         }
     }
-    for (const entt::entity e : ui) {
-        info.elements.push_back(field.at(e));
+    for (const Entity* e : ui) {
+        info.elements.push_back(field.at(e->id));
     }
 
     // --- Header ---
     std::ostringstream fields;
-    for (const entt::entity e : drawn) {
-        fields << "    SceneEntity " << field.at(e) << "; /* \"" << commentText(nameOf(e)) << "\" */\n";
+    for (const Entity* e : drawn) {
+        fields << "    SceneEntity " << field.at(e->id) << "; /* \"" << commentText(e->name) << "\" */\n";
     }
-    for (const entt::entity e : ui) {
-        fields << "    SceneUIElement " << field.at(e) << "; /* \"" << commentText(nameOf(e)) << "\" */\n";
+    for (const Entity* e : ui) {
+        fields << "    SceneUIElement " << field.at(e->id) << "; /* \"" << commentText(e->name) << "\" */\n";
     }
     if (info.hasUI) {
         fields << "    Rectangle ui_canvas; /* the Canvas in window pixels, from the last _update_ui */\n"
@@ -374,13 +370,13 @@ typedef struct {{type}} {
     // init: every designed value at once.
     c << "\nvoid " << prefix << "_init(" << type << " *s) {\n"
       << "    *s = (" << type << "){\n"
-      << "        .world = " << transformInit(registry.get<TransformComponent>(scene.world())) << ",\n";
-    for (const entt::entity e : drawn) {
-        c << "        ." << field.at(e) << " = {.transform = " << transformInit(registry.get<TransformComponent>(e));
-        if (const auto* sprite = registry.try_get<SpriteComponent>(e); sprite != nullptr && sprite->exported) {
+      << "        .world = " << transformInit(*scene.get(scene.world()).transform) << ",\n";
+    for (const Entity* e : drawn) {
+        c << "        ." << field.at(e->id) << " = {.transform = " << transformInit(*e->transform);
+        if (const auto& sprite = e->sprite; sprite && sprite->exported) {
             c << ", .sprite = {" << pair(sprite->size) << ", " << rgba(sprite->tint) << "}";
         }
-        if (const auto* col = registry.try_get<BoxColliderComponent>(e)) {
+        if (const auto& col = e->boxCollider) {
             c << ", .collider = {.offset = " << pair(col->offset) << ", .size = " << pair(col->size);
             if (col->isTrigger) {
                 c << ", .is_trigger = true";
@@ -388,7 +384,7 @@ typedef struct {{type}} {
             c << ", .density = " << floatLiteral(col->density) << ", .friction = " << floatLiteral(col->friction)
               << ", .restitution = " << floatLiteral(col->restitution) << "}";
         }
-        if (const auto* pc = registry.try_get<PlatformerControllerComponent>(e); pc != nullptr && hasPlatformer(e)) {
+        if (const auto& pc = e->platformer; pc && hasPlatformer(e)) {
             c << ", .platformer = {.move_speed = " << floatLiteral(pc->moveSpeed)
               << ", .acceleration = " << floatLiteral(pc->acceleration) << ", .air_control = " << floatLiteral(pc->airControl)
               << ", .jump_height = " << floatLiteral(pc->jumpHeight) << ", .coyote_time = " << floatLiteral(pc->coyoteTime)
@@ -397,14 +393,14 @@ typedef struct {{type}} {
         }
         c << ", .visible = true},\n";
     }
-    for (const entt::entity e : ui) {
-        const auto& u = registry.get<UIRectTransformComponent>(e);
-        c << "        ." << field.at(e) << " = {.layout = {" << pair(u.anchorMin) << ", " << pair(u.anchorMax) << ", "
+    for (const Entity* e : ui) {
+        const UIRectTransformComponent& u = *e->rectTransform;
+        c << "        ." << field.at(e->id) << " = {.layout = {" << pair(u.anchorMin) << ", " << pair(u.anchorMax) << ", "
           << pair(u.pivot) << ", " << pair(u.position) << ", " << pair(u.size) << "}";
-        if (const auto* rect = registry.try_get<UIRectangleComponent>(e)) {
+        if (const auto& rect = e->uiRectangle) {
             c << ", .color = " << rgba(rect->color);
         }
-        if (const auto* label = registry.try_get<UILabelComponent>(e)) {
+        if (const auto& label = e->uiLabel) {
             c << ", .label = {\"" << cString(label->text) << "\", " << floatLiteral(label->fontSize) << ", "
               << floatLiteral(label->spacing) << ", " << alignConstant(label->alignH) << ", "
               << alignConstant(label->alignV) << ", " << rgba(label->color) << "}";
@@ -415,30 +411,30 @@ typedef struct {{type}} {
     if (info.hasBodies) {
         // Bodies are placed in the World's own space: their parent chain without the World
         // transform. Only bodies and their ancestors need that placement.
-        std::unordered_set<entt::entity> needed;
-        for (const entt::entity e : bodies) {
-            for (entt::entity a = e; a != entt::null; a = parentOf(a)) {
+        std::unordered_set<const Entity*> needed;
+        for (const Entity* e : bodies) {
+            for (const Entity* a = e; a != nullptr; a = parentOf(a)) {
                 needed.insert(a);
             }
         }
         c << "\n    /* Physics: a body for each entity with a rigidbody or a box collider. */\n"
           << "    s->physics_world = scene_physics_create_world();\n"
           << "    {\n";
-        for (const entt::entity e : tree) {
+        for (const Entity* e : tree) {
             if (needed.count(e) > 0) {
-                const entt::entity p = parentOf(e);
-                c << "        const ScenePose p_" << field.at(e) << " = scene_child_pose("
-                  << (p == entt::null ? std::string("SCENE_POSE_IDENTITY") : "p_" + field.at(p)) << ", " << ref(e)
+                const Entity* p = parentOf(e);
+                c << "        const ScenePose p_" << field.at(e->id) << " = scene_child_pose("
+                  << (p == nullptr ? std::string("SCENE_POSE_IDENTITY") : "p_" + field.at(p->id)) << ", " << ref(e)
                   << ".transform);\n";
             }
         }
         c << "        b2BodyDef def;\n";
-        for (const entt::entity e : bodies) {
-            const auto* rb = registry.try_get<RigidbodyComponent>(e);
-            const std::string pose = "p_" + field.at(e);
+        for (const Entity* e : bodies) {
+            const auto& rb = e->rigidbody;
+            const std::string pose = "p_" + field.at(e->id);
             c << "        def = scene_body_def(" << pose << ", "
-              << bodyTypeConstant(rb != nullptr ? rb->type : BodyType::Static) << ", &" << ref(e) << ");\n";
-            if (rb != nullptr) {
+              << bodyTypeConstant(rb ? rb->type : BodyType::Static) << ", &" << ref(e) << ");\n";
+            if (rb) {
                 const RigidbodyComponent defaults;
                 if (rb->gravityScale != defaults.gravityScale) {
                     c << "        def.gravityScale = " << floatLiteral(rb->gravityScale) << ";\n";
@@ -457,7 +453,7 @@ typedef struct {{type}} {
                 }
             }
             c << "        " << ref(e) << ".body = b2CreateBody(s->physics_world, &def);\n";
-            if (registry.all_of<BoxColliderComponent>(e)) {
+            if (e->boxCollider) {
                 c << "        scene_add_box_collider(" << ref(e) << ".body, " << pose << ".scale, " << ref(e)
                   << ".collider, &" << ref(e) << ");\n";
             }
@@ -473,19 +469,19 @@ typedef struct {{type}} {
         // Poses, parents first.
         c << "\nvoid " << prefix << "_update_poses(" << type << " *s) {\n"
           << "    const ScenePose world = scene_child_pose(SCENE_POSE_IDENTITY, s->world);\n";
-        for (const entt::entity e : tree) {
-            const entt::entity p = parentOf(e);
+        for (const Entity* e : tree) {
+            const Entity* p = parentOf(e);
             c << "    " << ref(e) << ".pose = scene_child_pose("
-              << (p == entt::null ? std::string("world") : ref(p) + ".pose") << ", " << ref(e) << ".transform);\n";
+              << (p == nullptr ? std::string("world") : ref(p) + ".pose") << ", " << ref(e) << ".transform);\n";
         }
         c << "}\n";
 
         // Sprites, in drawing order.
         c << "\nvoid " << prefix << "_draw(" << type << " *s) {\n"
           << "    " << prefix << "_update_poses(s);\n";
-        for (const entt::entity e : drawn) {
-            const auto* sprite = registry.try_get<SpriteComponent>(e);
-            if (sprite != nullptr && sprite->exported) {
+        for (const Entity* e : drawn) {
+            const auto& sprite = e->sprite;
+            if (sprite && sprite->exported) {
                 c << "    if (" << ref(e) << ".visible) scene_draw_" << shapeName(sprite->shape) << "(" << ref(e)
                   << ".sprite, " << ref(e) << ".pose);\n";
             }
@@ -498,10 +494,10 @@ typedef struct {{type}} {
         c << "\nvoid " << prefix << "_update_ui(" << type << " *s) {\n"
           << "    s->ui_canvas = scene_ui_canvas();\n"
           << "    s->ui_scale = scene_ui_scale(s->ui_canvas);\n";
-        for (const entt::entity e : ui) {
-            const entt::entity p = parentOf(e);
+        for (const Entity* e : ui) {
+            const Entity* p = parentOf(e);
             c << "    " << ref(e) << ".rect = scene_ui_layout("
-              << (p == entt::null ? std::string("s->ui_canvas") : ref(p) + ".rect") << ", " << ref(e)
+              << (p == nullptr ? std::string("s->ui_canvas") : ref(p) + ".rect") << ", " << ref(e)
               << ".layout, s->ui_scale);\n";
         }
         c << "}\n";
@@ -511,9 +507,9 @@ typedef struct {{type}} {
             c << "    const Font font = s->ui_font != NULL ? *s->ui_font : GetFontDefault();\n";
         }
         c << "    " << prefix << "_update_ui(s);\n";
-        for (const entt::entity e : ui) {
-            const bool rect = registry.all_of<UIRectangleComponent>(e);
-            const bool label = registry.all_of<UILabelComponent>(e);
+        for (const Entity* e : ui) {
+            const bool rect = e->uiRectangle.has_value();
+            const bool label = e->uiLabel.has_value();
             if (rect && label) {
                 c << "    if (" << ref(e) << ".visible) {\n"
                   << "        DrawRectangleRec(" << ref(e) << ".rect, " << ref(e) << ".color);\n"
@@ -533,20 +529,19 @@ typedef struct {{type}} {
     if (info.hasBodies) {
         // Fixed steps, then moving bodies back into their entities, parents first.
         c << "\nvoid " << prefix << "_step(" << type << " *s, float dt) {\n";
-        for (const entt::entity e : drawn) {
+        for (const Entity* e : drawn) {
             if (hasPlatformer(e)) {
                 c << "    scene_platformer_update(&" << ref(e) << ", dt);\n";
             }
         }
         c << "    scene_physics_advance(s->physics_world, &s->physics_time, dt);\n";
-        for (const entt::entity e : tree) {
-            const auto* rb = registry.try_get<RigidbodyComponent>(e);
-            if (rb == nullptr || rb->type == BodyType::Static) {
+        for (const Entity* e : tree) {
+            if (!e->rigidbody || e->rigidbody->type == BodyType::Static) {
                 continue;
             }
             std::string base = "SCENE_POSE_IDENTITY";
-            std::vector<entt::entity> chain;
-            for (entt::entity a = parentOf(e); a != entt::null; a = parentOf(a)) {
+            std::vector<const Entity*> chain;
+            for (const Entity* a = parentOf(e); a != nullptr; a = parentOf(a)) {
                 chain.push_back(a);
             }
             for (auto it = chain.rbegin(); it != chain.rend(); ++it) {

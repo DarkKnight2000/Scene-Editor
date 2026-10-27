@@ -7,14 +7,13 @@ project(
     'cpp_std=c++20',
     'warning_level=3',
     'buildtype=debug',
-    'force_fallback_for=entt,nlohmann_json', # always use the pinned subprojects/*.wrap versions
+    'force_fallback_for=nlohmann_json', # always use the pinned subprojects/*.wrap versions
   ],
 )
 
 subdir('external/raylib')
 subdir('external/raygui')
 
-entt_dep = dependency('entt')
 json_dep = dependency('nlohmann_json')
 
 # Defaults for the Play button: build exported projects with this compiler and this raylib.
@@ -80,14 +79,14 @@ editor_lib = static_library(
     'src/Widgets.cpp',
     'src/Workspace.cpp',
   ),
-  dependencies : [raygui_dep, entt_dep, json_dep],
+  dependencies : [raygui_dep, json_dep],
 )
 
 executable(
   'SceneEditor',
   'src/main.cpp',
   link_with : editor_lib,
-  dependencies : [raygui_dep, entt_dep, json_dep],
+  dependencies : [raygui_dep, json_dep],
   link_args : app_link_args,
   win_subsystem : 'windows',
 )
@@ -99,6 +98,6 @@ executable(
   'tools/DebugExporter.cpp',
   link_with : editor_lib,
   include_directories : include_directories('src'),
-  dependencies : [raygui_dep, entt_dep, json_dep],
+  dependencies : [raygui_dep, json_dep],
   build_by_default : false,
 )

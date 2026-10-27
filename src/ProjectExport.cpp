@@ -97,7 +97,9 @@ bool exportProject(const Project& project,
             scene = &loaded;
         }
 
-        if (!project.physics.enabled && !scene->registry().view<RigidbodyComponent>().empty()) {
+        const bool hasRigidbodies = std::any_of(scene->entities().begin(), scene->entities().end(),
+                                                [](const Entity& e) { return e.rigidbody.has_value(); });
+        if (!project.physics.enabled && hasRigidbodies) {
             logWarning("Export: " + file.filename().string() +
                        " has rigidbodies, but physics is off in Project Settings: they aren't exported");
         }

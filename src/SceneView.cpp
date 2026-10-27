@@ -292,55 +292,53 @@ void SceneView::frameDesign(Rectangle viewport, const DisplaySettings& display) 
     m_target = {0.0f, 0.0f};
 }
 
-entt::entity SceneView::pick(const Scene& scene, Vector2 point, entt::entity selected,
-                             const UICanvasFrame& canvas) const {
-    const entt::registry& registry = scene.registry();
+EntityId SceneView::pick(const Scene& scene, Vector2 point, EntityId selected, const UICanvasFrame& canvas) const {
     const float px = 1.0f / m_zoom;
-    const auto hits = [&](entt::entity e) {
-        if (scene.isRoot(e) || !registry.valid(e)) {
+    const auto hits = [&](const Entity& e) {
+        if (scene.isRoot(e.id)) {
             return false;
         }
-        if (scene.isUI(e)) {
-            return CheckCollisionPointRec(point, canvasToScene(canvas, scene.uiRect(e, canvas.size)));
+        if (e.rectTransform) {
+            return CheckCollisionPointRec(point, canvasToScene(canvas, scene.uiRect(e.id, canvas.size)));
         }
-        const Pose pose = scene.finalPose(e);
-        if (const auto* sprite = registry.try_get<SpriteComponent>(e)) {
-            return spriteContains(pose, *sprite, point);
+        const Pose pose = scene.finalPose(e.id);
+        if (e.sprite) {
+            return spriteContains(pose, *e.sprite, point);
         }
         return Vector2Distance(point, pose.position) <= 8.0f * px; // marker
     };
 
-    if (selected != entt::null && hits(selected)) {
+    if (const Entity* s = scene.find(selected); s != nullptr && hits(*s)) {
         return selected;
     }
     // UI is drawn on top: last drawn first. Elements without a UI Rectangle or Label are invisible,
     // so they're only picked while selected (above) or from the Entities panel.
     const std::vector<HierarchyRow> rows = scene.hierarchy();
     for (auto it = rows.rbegin(); it != rows.rend(); ++it) {
-        if (scene.isUI(it->entity) && registry.any_of<UIRectangleComponent, UILabelComponent>(it->entity) &&
-            hits(it->entity)) {
-            return it->entity;
+        const Entity& e = scene.get(it->entity);
+        if (e.rectTransform && (e.uiRectangle || e.uiLabel) && hits(e)) {
+            return e.id;
         }
     }
     const auto& order = scene.entities();
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
-        if (!scene.isUI(*it) && hits(*it)) {
-            return *it;
+        if (!scene.isUI(it->id) && hits(*it)) {
+            return it->id;
         }
     }
-    return entt::null;
+    return kNoEntity;
 }
 
 void SceneView::dragTo(Scene& scene, Vector2 delta, const UICanvasFrame& canvas) const {
-    if (auto* ui = scene.registry().try_get<UIRectTransformComponent>(m_pressed)) {
+    if (Entity& e = scene.get(m_pressed); e.rectTransform) {
         // The position moves the rectangle one to one, in canvas units.
-        ui->position = Vector2Add(m_dragStart, Vector2Scale(delta, 1.0f / canvasScale(canvas)));
+        e.rectTransform->position = Vector2Add(m_dragStart, Vector2Scale(delta, 1.0f / canvasScale(canvas)));
     } else {
         scene.placeEntity(m_pressed, Vector2Add(m_dragStart, delta));
     }
 }
 
-void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport, const DisplaySettings& display,
+void SceneView::update(Scene& scene, EntityId& selected, Rectangle viewport, const DisplaySettings& display,
                        bool allowInput) {
     if (!m_framed && viewport.width > 0.0f && viewport.height > 0.0f) {
         frameDesign(viewport, display);
@@ -348,7 +346,7 @@ void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport,
     }
     if (!allowInput) {
         m_panning = false;
-        m_pressed = entt::null;
+        m_pressed = kNoEntity;
         m_dragging = false;
         return;
     }
@@ -382,7 +380,6 @@ void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport,
     }
 
     // Select on press; moving a few pixels with the button held drags the pressed entity.
-    entt::registry& registry = scene.registry();
     const UICanvasFrame canvas = uiCanvasFrame(display, kPreviews[m_preview].aspect);
     const Vector2 point = GetScreenToWorld2D(mouse, camera(viewport));
     if (over && !m_panning && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -391,16 +388,15 @@ void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport,
         m_dragging = false;
         m_pressMouse = mouse;
         m_pressPoint = point;
-        if (m_pressed != entt::null) {
-            const auto* ui = registry.try_get<UIRectTransformComponent>(m_pressed);
-            m_dragStart = ui != nullptr ? ui->position : scene.finalPose(m_pressed).position;
+        if (const Entity* e = scene.find(m_pressed)) {
+            m_dragStart = e->rectTransform ? e->rectTransform->position : scene.finalPose(m_pressed).position;
         }
     }
-    if (m_pressed == entt::null) {
+    if (m_pressed == kNoEntity) {
         return;
     }
-    if (!registry.valid(m_pressed) || !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-        m_pressed = entt::null; // released (the history records the move as one edit)
+    if (!scene.contains(m_pressed) || !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        m_pressed = kNoEntity; // released (the history records the move as one edit)
         m_dragging = false;
         return;
     }
@@ -410,7 +406,7 @@ void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport,
     if (m_dragging) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             dragTo(scene, {0.0f, 0.0f}, canvas); // back where it started
-            m_pressed = entt::null;
+            m_pressed = kNoEntity;
             m_dragging = false;
             return;
         }
@@ -419,8 +415,7 @@ void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport,
     }
 }
 
-void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity selected, const DisplaySettings& display) {
-    const entt::registry& registry = scene.registry();
+void SceneView::draw(const Scene& scene, Rectangle viewport, EntityId selected, const DisplaySettings& display) {
     const Camera2D cam = camera(viewport);
     const float px = 1.0f / m_zoom; // one screen pixel in scene units
     const Vector2 topLeft = GetScreenToWorld2D({viewport.x, viewport.y}, cam);
@@ -432,17 +427,17 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
     theme::beginCamera(cam);
     drawGrid(visible, m_zoom);
 
-    for (const entt::entity e : scene.entities()) {
-        if (scene.isWorld(e) || !registry.all_of<TransformComponent>(e)) {
+    for (const Entity& e : scene.entities()) {
+        if (scene.isWorld(e.id) || !e.transform) {
             continue; // the World is drawn as a gizmo below; the Canvas and UI after the scene
         }
-        const Pose pose = scene.finalPose(e);
-        if (const auto* sprite = registry.try_get<SpriteComponent>(e)) {
-            drawSprite(pose, *sprite);
+        const Pose pose = scene.finalPose(e.id);
+        if (e.sprite) {
+            drawSprite(pose, *e.sprite);
         } else {
             drawMarker(pose.position, kMarkerColor, px);
         }
-        if (const auto* collider = registry.try_get<BoxColliderComponent>(e)) {
+        if (const auto& collider = e.boxCollider) {
             const Vector2 offset = Vector2Rotate(Vector2Multiply(collider->offset, pose.scale), pose.rotation * DEG2RAD);
             const Vector2 half{collider->size.x * std::fabs(pose.scale.x) / 2.0f,
                                collider->size.y * std::fabs(pose.scale.y) / 2.0f};
@@ -467,16 +462,17 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
     const UICanvasFrame canvas = uiCanvasFrame(display, aspect);
     const auto toFrame = [&](Rectangle r) { return canvasToScene(canvas, r); };
     for (const HierarchyRow& row : scene.hierarchy()) {
-        const auto* rect = registry.try_get<UIRectangleComponent>(row.entity);
-        const auto* label = registry.try_get<UILabelComponent>(row.entity);
-        if (rect == nullptr && label == nullptr) {
+        const Entity& e = scene.get(row.entity);
+        const auto& rect = e.uiRectangle;
+        const auto& label = e.uiLabel;
+        if (!rect && !label) {
             continue;
         }
         const Rectangle r = toFrame(scene.uiRect(row.entity, canvas.size));
-        if (rect != nullptr) {
+        if (rect) {
             DrawRectangleRec(r, rect->color);
         }
-        if (label != nullptr) {
+        if (label) {
             const float k = canvasScale(canvas);
             drawTextInRect(GetFontDefault(), label->text, r, label->fontSize * k, label->spacing * k, label->alignH,
                            label->alignV, label->color);
@@ -491,7 +487,8 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
     }
 
     // Selection outline on top of everything.
-    if (selected != entt::null && registry.valid(selected) && scene.isUI(selected)) {
+    const Entity* sel = scene.find(selected);
+    if (sel != nullptr && scene.isUI(selected)) {
         // The canvas, and the selected element's rectangle and pivot.
         DrawRectangleLinesEx(canvas.frame, 1.5f * px, Fade(kCanvasColor, 0.8f));
         if (!scene.isCanvas(selected)) {
@@ -500,7 +497,7 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
                                  kSelectionColor);
             drawHandles({r.x + r.width / 2.0f, r.y + r.height / 2.0f}, {r.width / 2.0f + px, r.height / 2.0f + px}, 0.0f,
                         px);
-            const auto& t = registry.get<UIRectTransformComponent>(selected);
+            const UIRectTransformComponent& t = *sel->rectTransform;
 
             // Anchors: a plus at each corner of the anchor rectangle on the parent (one plus
             // when pinned to a point, two when stretched along one axis). Drawn before the
@@ -515,16 +512,15 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
             }
             DrawCircleV({r.x + t.pivot.x * r.width, r.y + t.pivot.y * r.height}, 4.0f * px, kSelectionColor);
         }
-    } else if (selected != entt::null && registry.valid(selected) && !scene.isWorld(selected)) {
-        const auto& t = registry.get<TransformComponent>(selected);
+    } else if (sel != nullptr && !scene.isWorld(selected)) {
         const Pose pose = scene.finalPose(selected);
-        if (registry.valid(t.origin) && !scene.isWorld(t.origin)) {
+        if (scene.contains(sel->parent) && !scene.isWorld(sel->parent)) {
             // Link to the entity being followed.
-            const Vector2 target = scene.finalPose(t.origin).position;
+            const Vector2 target = scene.finalPose(sel->parent).position;
             DrawLineEx(target, pose.position, 1.5f * px, Fade(kSelectionColor, 0.6f));
             DrawCircleV(target, 4.0f * px, kSelectionColor);
         }
-        if (const auto* sprite = registry.try_get<SpriteComponent>(selected)) {
+        if (const auto& sprite = sel->sprite) {
             const Vector2 half{sprite->size.x * std::fabs(pose.scale.x) / 2.0f + px,
                                sprite->size.y * std::fabs(pose.scale.y) / 2.0f + px};
             drawRotatedRectLines(pose.position, half, pose.rotation, 1.5f * px, kSelectionColor);
@@ -544,7 +540,7 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
         const Vector2 previewCorner = GetWorldToScreen2D({preview.x, preview.y + preview.height}, cam);
         pill({previewCorner.x, previewCorner.y + 6.0f}, kPreviews[m_preview].label, kPreviewColor);
     }
-    if (selected != entt::null && registry.valid(selected) && scene.isUI(selected)) {
+    if (sel != nullptr && scene.isUI(selected)) {
         const Vector2 canvasCorner = GetWorldToScreen2D({canvas.frame.x + canvas.frame.width, canvas.frame.y}, cam);
         const std::string canvasLabel = "Canvas " + std::to_string(static_cast<int>(std::lround(canvas.size.x))) + "x" +
                                         std::to_string(static_cast<int>(std::lround(canvas.size.y)));

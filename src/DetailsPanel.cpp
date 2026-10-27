@@ -17,16 +17,14 @@ constexpr float kMenuItemHeight = 28.0f;
 constexpr Color kRemoveColor = theme::kError;
 } // namespace
 
-void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt::entity& selected) {
-    entt::registry& registry = scene.registry();
-
+void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, EntityId& selected) {
     if (selected != m_lastEntity) {
         m_lastEntity = selected;
         m_addMenuOpen = false;
         m_scroll = {};
     }
 
-    if (selected == entt::null || !registry.valid(selected)) {
+    if (!scene.contains(selected)) {
         ui::label({content.x + 10.0f, content.y + 6.0f, content.width - 20.0f, ui::kRowHeight},
                   "Select an entity to see its components.", theme::kTextFaint);
         return;
@@ -64,7 +62,8 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
     const bool isRoot = scene.isRoot(selected);
     const ComponentScope scope = scene.isUI(selected) ? ComponentScope::UI : ComponentScope::World;
     bool deleteRequested = false;
-    auto& name = registry.get<NameComponent>(selected).name;
+    Entity& entity = scene.get(selected);
+    std::string& name = entity.name;
     GuiDrawIcon(entityIcon(scene, selected), static_cast<int>(x + 12.0f), static_cast<int>(y + 4.0f), 1, theme::kAccentHover);
     if (isRoot) {
         ui::drawText(theme::bold(), name.c_str(), {x + 36.0f, y + (ui::kFieldHeight - theme::kFontSize) / 2.0f},
@@ -87,7 +86,7 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
     int removeIndex = -1;
     for (std::size_t i = 0; i < types.size(); ++i) {
         const ComponentType& type = types[i];
-        if ((isRoot && type.removable) || !type.has(registry, selected)) {
+        if ((isRoot && type.removable) || !type.has(entity)) {
             continue;
         }
 
@@ -117,7 +116,7 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
 
         if (!m_collapsed[i]) {
             ui::PropertyGrid grid(x + 4.0f, y, w - 8.0f);
-            type.drawFields(scene, selected, grid);
+            type.drawFields(scene, entity, grid);
             y = grid.y() + 4.0f;
         }
         y += kPadding;
@@ -140,30 +139,29 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
     // Apply structural changes after drawing so we never touch a removed component.
     if (deleteRequested) {
         history.destroyEntity(scene, selected);
-        selected = entt::null;
+        selected = kNoEntity;
         m_addMenuOpen = false;
         return;
     }
     if (removeIndex >= 0) {
-        types[static_cast<std::size_t>(removeIndex)].remove(registry, selected);
+        types[static_cast<std::size_t>(removeIndex)].remove(entity);
     }
 
     if (m_addMenuOpen) {
-        const int addIndex = drawAddMenu(addButton, content, registry, selected, scope);
+        const int addIndex = drawAddMenu(addButton, content, entity, scope);
         if (addIndex >= 0) {
-            types[static_cast<std::size_t>(addIndex)].add(registry, selected);
+            types[static_cast<std::size_t>(addIndex)].add(entity);
             m_collapsed[static_cast<std::size_t>(addIndex)] = false;
             m_addMenuOpen = false;
         }
     }
 }
 
-int DetailsPanel::drawAddMenu(Rectangle anchor, Rectangle content, const entt::registry& registry,
-                              entt::entity entity, ComponentScope scope) {
+int DetailsPanel::drawAddMenu(Rectangle anchor, Rectangle content, const Entity& entity, ComponentScope scope) {
     const auto types = componentTypes();
     std::vector<int> available;
     for (std::size_t i = 0; i < types.size(); ++i) {
-        if (types[i].removable && types[i].scope == scope && !types[i].has(registry, entity)) {
+        if (types[i].removable && types[i].scope == scope && !types[i].has(entity)) {
             available.push_back(static_cast<int>(i));
         }
     }
