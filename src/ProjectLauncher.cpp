@@ -1,5 +1,6 @@
 #include "ProjectLauncher.h"
 
+#include "Theme.h"
 #include "Widgets.h"
 
 #include <raygui.h>
@@ -24,7 +25,7 @@ std::filesystem::path fromUtf8(const std::string& text) {
 }
 
 void heading(float x, float y, const char* text, float size, Color color) {
-    DrawTextEx(GuiGetFont(), text, {x, y}, size, size / 10.0f, color);
+    ui::drawText(size > theme::kFontSize ? theme::title() : theme::font(), text, {x, y}, size, color);
 }
 } // namespace
 
@@ -78,9 +79,9 @@ std::optional<Project> ProjectLauncher::draw(Rectangle area) {
     DrawRectangleRec(area, ui::styleColor(BACKGROUND_COLOR));
 
     // Header
-    heading(area.x + kPadding, area.y + 20.0f, "Scene Editor", 40.0f, ui::styleColor(TEXT_COLOR_FOCUSED));
-    heading(area.x + kPadding, area.y + 66.0f, "Open a recent project or start a new one.", 20.0f,
-            ui::styleColor(TEXT_COLOR_DISABLED));
+    heading(area.x + kPadding, area.y + 24.0f, "Scene Editor", theme::kTitleFontSize, theme::kText);
+    heading(area.x + kPadding, area.y + 64.0f, "Open a recent project or start a new one.", theme::kFontSize,
+            theme::kTextDim);
     const Rectangle body{area.x + kPadding, area.y + 110.0f, area.width - 2.0f * kPadding,
                          area.height - 110.0f - kPadding};
 
@@ -118,11 +119,12 @@ std::optional<Project> ProjectLauncher::drawRecent(Rectangle area) {
         const bool hot = ui::hovered(row);
         const bool overRemove = CheckCollisionPointRec(mouse, removeButton);
         if (hot) {
-            DrawRectangleRec(row, ui::styleColor(BASE_COLOR_FOCUSED));
+            ui::fill({row.x + 2.0f, row.y + 1.0f, row.width - 4.0f, row.height - 2.0f}, theme::kFieldHover);
         }
 
-        const Color nameColor = ui::styleColor(entry.missing ? TEXT_COLOR_DISABLED : TEXT_COLOR_FOCUSED);
-        GuiDrawIcon(ICON_FOLDER_OPEN, static_cast<int>(row.x + 12.0f), static_cast<int>(row.y + 10.0f), 1, nameColor);
+        const Color nameColor = entry.missing ? theme::kTextFaint : theme::kText;
+        GuiDrawIcon(ICON_FOLDER_OPEN, static_cast<int>(row.x + 12.0f), static_cast<int>(row.y + 10.0f), 1,
+                    entry.missing ? theme::kTextFaint : theme::kAccentHover);
         const std::string name = entry.missing ? entry.name + "  (missing)" : entry.name;
         ui::label({row.x + 38.0f, row.y + 4.0f, row.width - 80.0f, 26.0f}, name.c_str(), nameColor);
         const std::string location = toUtf8(entry.file.parent_path());
@@ -185,10 +187,10 @@ std::optional<Project> ProjectLauncher::drawNew(Rectangle area) {
     bool create = false;
     const Rectangle createButton{area.x + area.width - 160.0f, by, 160.0f, kButtonHeight};
     if (problem.empty() && !m_location.empty()) {
-        create = ui::button(createButton, "Create") || (IsKeyPressed(KEY_ENTER) && !ui::isTextEditing());
+        create = ui::button(createButton, "Create", ui::ButtonKind::Primary) || (IsKeyPressed(KEY_ENTER) && !ui::isTextEditing());
     } else {
         GuiDisable();
-        ui::button(createButton, "Create");
+        ui::button(createButton, "Create", ui::ButtonKind::Primary);
         GuiEnable();
     }
     if (ui::button({area.x + area.width - 330.0f, by, 160.0f, kButtonHeight}, "Back") ||
@@ -220,7 +222,7 @@ std::optional<Project> ProjectLauncher::drawOpen(Rectangle area) {
     ui::textField({area.x, area.y + 82.0f, area.width, 30.0f}, m_openPath);
 
     const float by = area.y + area.height - kButtonHeight - 30.0f;
-    if (ui::button({area.x + area.width - 160.0f, by, 160.0f, kButtonHeight}, "Open") ||
+    if (ui::button({area.x + area.width - 160.0f, by, 160.0f, kButtonHeight}, "Open", ui::ButtonKind::Primary) ||
         (IsKeyPressed(KEY_ENTER) && !ui::isTextEditing() && !m_openPath.empty())) {
         // Accept paths pasted with surrounding quotes.
         std::string path = m_openPath;

@@ -1,6 +1,7 @@
 #include "SceneView.h"
 
 #include "Components.h"
+#include "Theme.h"
 #include "Widgets.h"
 
 #include <raygui.h>
@@ -14,12 +15,13 @@
 #include <vector>
 
 namespace {
-constexpr Color kBackground{20, 20, 23, 255};
-constexpr Color kGridColor{36, 36, 42, 255};
-constexpr Color kAxisColor{64, 64, 74, 255};
+constexpr Color kBackground = theme::kBackground;
+constexpr Color kGridColor{30, 31, 36, 255};      // minor lines
+constexpr Color kGridMajorColor{38, 40, 46, 255}; // every 4th line
+constexpr Color kAxisColor{58, 61, 70, 255};
 constexpr Color kFrameColor{205, 205, 215, 255};
 constexpr Color kPreviewColor{240, 160, 60, 255};
-constexpr Color kSelectionColor{61, 143, 224, 255};
+constexpr Color kSelectionColor = theme::kAccent;
 constexpr Color kColliderColor{90, 220, 120, 255};
 constexpr Color kTriggerColor{230, 200, 80, 255};
 constexpr Color kMarkerColor{150, 150, 160, 255};
@@ -65,11 +67,15 @@ void drawGrid(Rectangle visible, float zoom) {
     while (spacing * zoom > 192.0f && spacing > 4.0f) {
         spacing /= 2.0f;
     }
+    // Every 4th line is a little brighter, so the grid reads at a glance.
+    const auto lineColor = [&](float at) {
+        return std::llround(at / spacing) % 4 == 0 ? kGridMajorColor : kGridColor;
+    };
     for (float x = std::floor(visible.x / spacing) * spacing; x < visible.x + visible.width; x += spacing) {
-        DrawLineV({x, visible.y}, {x, visible.y + visible.height}, kGridColor);
+        DrawLineV({x, visible.y}, {x, visible.y + visible.height}, lineColor(x));
     }
     for (float y = std::floor(visible.y / spacing) * spacing; y < visible.y + visible.height; y += spacing) {
-        DrawLineV({visible.x, y}, {visible.x + visible.width, y}, kGridColor);
+        DrawLineV({visible.x, y}, {visible.x + visible.width, y}, lineColor(y));
     }
     DrawLineV({0.0f, visible.y}, {0.0f, visible.y + visible.height}, kAxisColor);
     DrawLineV({visible.x, 0.0f}, {visible.x + visible.width, 0.0f}, kAxisColor);
@@ -89,6 +95,30 @@ void drawWorldGizmo(const Pose& world, bool selected, float px) {
 void drawMarker(Vector2 p, Color color, float px) {
     DrawLineEx({p.x - 8.0f * px, p.y}, {p.x + 8.0f * px, p.y}, 2.0f * px, color);
     DrawLineEx({p.x, p.y - 8.0f * px}, {p.x, p.y + 8.0f * px}, 2.0f * px, color);
+}
+
+// Selection handles: small squares at the corners of a (rotated) rectangle. `px` = one screen pixel.
+void drawHandles(Vector2 center, Vector2 halfSize, float degrees, float px) {
+    const float rad = degrees * DEG2RAD;
+    const float h = 3.5f * px;
+    for (const Vector2 corner : {Vector2{-halfSize.x, -halfSize.y}, Vector2{halfSize.x, -halfSize.y},
+                                 Vector2{halfSize.x, halfSize.y}, Vector2{-halfSize.x, halfSize.y}}) {
+        const Vector2 p = Vector2Add(center, Vector2Rotate(corner, rad));
+        DrawRectangleRec({p.x - h - px, p.y - h - px, 2.0f * (h + px), 2.0f * (h + px)}, kSelectionColor);
+        DrawRectangleRec({p.x - h + px, p.y - h + px, 2.0f * (h - px), 2.0f * (h - px)}, kBackground);
+    }
+}
+
+// A small label on a translucent pill, in screen space.
+void pill(Vector2 at, const char* text, Color color) {
+    constexpr float kSize = theme::kSmallFontSize + 1.0f;
+    const Rectangle r{at.x, at.y, ui::textWidth(theme::font(), text, kSize) + 14.0f, 20.0f};
+    ui::fill(r, Fade(theme::kRaised, 0.92f), 10.0f);
+    ui::drawText(theme::font(), text, {r.x + 7.0f, r.y + (r.height - kSize) / 2.0f}, kSize, color);
+}
+
+float pillWidth(const char* text) {
+    return ui::textWidth(theme::font(), text, theme::kSmallFontSize + 1.0f) + 14.0f;
 }
 
 // Darkens `visible` outside `keep` (both in scene units).
@@ -340,7 +370,7 @@ void SceneView::update(Scene& scene, entt::entity& selected, Rectangle viewport,
     }
     if (m_panning) {
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-            m_target = Vector2Subtract(m_target, Vector2Scale(GetMouseDelta(), 1.0f / m_zoom));
+            m_target = Vector2Subtract(m_target, Vector2Scale(theme::mouseDelta(), 1.0f / m_zoom));
             ui::requestCursor(MOUSE_CURSOR_RESIZE_ALL);
         } else {
             m_panning = false;
@@ -399,7 +429,7 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
 
     ui::pushClip(viewport);
     DrawRectangleRec(viewport, kBackground);
-    BeginMode2D(cam);
+    theme::beginCamera(cam);
     drawGrid(visible, m_zoom);
 
     for (const entt::entity e : scene.entities()) {
@@ -466,8 +496,10 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
         DrawRectangleLinesEx(canvas.frame, 1.5f * px, Fade(kCanvasColor, 0.8f));
         if (!scene.isCanvas(selected)) {
             const Rectangle r = toFrame(scene.uiRect(selected, canvas.size));
-            DrawRectangleLinesEx({r.x - 2.0f * px, r.y - 2.0f * px, r.width + 4.0f * px, r.height + 4.0f * px}, 2.0f * px,
+            DrawRectangleLinesEx({r.x - px, r.y - px, r.width + 2.0f * px, r.height + 2.0f * px}, 1.5f * px,
                                  kSelectionColor);
+            drawHandles({r.x + r.width / 2.0f, r.y + r.height / 2.0f}, {r.width / 2.0f + px, r.height / 2.0f + px}, 0.0f,
+                        px);
             const auto& t = registry.get<UIRectTransformComponent>(selected);
 
             // Anchors: a plus at each corner of the anchor rectangle on the parent (one plus
@@ -493,31 +525,37 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, entt::entity select
             DrawCircleV(target, 4.0f * px, kSelectionColor);
         }
         if (const auto* sprite = registry.try_get<SpriteComponent>(selected)) {
-            const Vector2 half{sprite->size.x * std::fabs(pose.scale.x) / 2.0f + 2.0f * px,
-                               sprite->size.y * std::fabs(pose.scale.y) / 2.0f + 2.0f * px};
-            drawRotatedRectLines(pose.position, half, pose.rotation, 2.0f * px, kSelectionColor);
+            const Vector2 half{sprite->size.x * std::fabs(pose.scale.x) / 2.0f + px,
+                               sprite->size.y * std::fabs(pose.scale.y) / 2.0f + px};
+            drawRotatedRectLines(pose.position, half, pose.rotation, 1.5f * px, kSelectionColor);
+            drawHandles(pose.position, half, pose.rotation, px);
         } else {
             drawMarker(pose.position, kSelectionColor, px);
         }
     }
-    EndMode2D();
+    theme::endCamera();
 
     // Labels in screen space, just above each frame.
     const Vector2 designCorner = GetWorldToScreen2D({design.x, design.y}, cam);
-    const std::string designLabel = std::to_string(display.width) + "x" + std::to_string(display.height) + "  " +
+    const std::string designLabel = std::to_string(display.width) + " x " + std::to_string(display.height) + "   " +
                                     scaleModeName(display.scaleMode);
-    ui::label({designCorner.x, designCorner.y - 24.0f, 400.0f, 22.0f}, designLabel.c_str(), Fade(kFrameColor, 0.8f));
+    pill({designCorner.x, designCorner.y - 26.0f}, designLabel.c_str(), theme::kTextDim);
     if (aspect > 0.0f) {
         const Vector2 previewCorner = GetWorldToScreen2D({preview.x, preview.y + preview.height}, cam);
-        ui::label({previewCorner.x, previewCorner.y + 2.0f, 400.0f, 22.0f}, kPreviews[m_preview].label, kPreviewColor);
+        pill({previewCorner.x, previewCorner.y + 6.0f}, kPreviews[m_preview].label, kPreviewColor);
     }
     if (selected != entt::null && registry.valid(selected) && scene.isUI(selected)) {
         const Vector2 canvasCorner = GetWorldToScreen2D({canvas.frame.x + canvas.frame.width, canvas.frame.y}, cam);
         const std::string canvasLabel = "Canvas " + std::to_string(static_cast<int>(std::lround(canvas.size.x))) + "x" +
                                         std::to_string(static_cast<int>(std::lround(canvas.size.y)));
-        ui::label({canvasCorner.x - 200.0f, canvasCorner.y - 24.0f, 200.0f, 22.0f}, canvasLabel.c_str(),
-                  Fade(kCanvasColor, 0.9f), true);
+        pill({canvasCorner.x - pillWidth(canvasLabel.c_str()), canvasCorner.y - 26.0f}, canvasLabel.c_str(),
+             Fade(kCanvasColor, 0.95f));
     }
+
+    // Zoom, in the bottom-right corner.
+    const std::string zoom = std::to_string(static_cast<int>(std::lround(m_zoom * 100.0f))) + "%";
+    pill({viewport.x + viewport.width - pillWidth(zoom.c_str()) - 10.0f, viewport.y + viewport.height - 30.0f},
+         zoom.c_str(), theme::kTextDim);
     ui::popClip();
 }
 
@@ -526,14 +564,14 @@ void SceneView::drawHeader(Rectangle header, Rectangle viewport, const DisplaySe
     for (const PreviewShape& shape : kPreviews) {
         labels.push_back(shape.label);
     }
-    const Rectangle combo{header.x + header.width - 214.0f, header.y + 2.0f, 210.0f, header.height - 4.0f};
+    constexpr float kControlHeight = 26.0f;
+    const float y = header.y + (header.height - kControlHeight) / 2.0f;
+    const Rectangle combo{header.x + header.width - 190.0f, y, 184.0f, kControlHeight};
     ui::combo(combo, &m_preview, labels, &m_preview);
 
-    const Rectangle frameButton{combo.x - 30.0f, combo.y, 26.0f, combo.height};
-    if (ui::iconButton(frameButton, ICON_ZOOM_CENTER, ui::styleColor(TEXT_COLOR_FOCUSED))) {
+    const Rectangle frameButton{combo.x - kControlHeight - 4.0f, y, kControlHeight, kControlHeight};
+    if (ui::iconButton(frameButton, ICON_ZOOM_CENTER, theme::kText)) {
         frameDesign(viewport, display);
     }
-    const std::string zoom = std::to_string(static_cast<int>(std::lround(m_zoom * 100.0f))) + "%";
-    ui::label({frameButton.x - 70.0f, header.y, 64.0f, header.height}, zoom.c_str(),
-              ui::styleColor(TEXT_COLOR_DISABLED));
+    ui::tooltip(frameButton, "Frame the design area");
 }

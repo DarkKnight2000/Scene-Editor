@@ -2,14 +2,26 @@
 
 #include <raygui.h>
 
+#include "Theme.h"
 #include "Widgets.h"
 
 #include <algorithm>
 
 namespace {
-constexpr float kSplitterSize = 6.0f;  // visible gap between panels
-constexpr float kSplitterGrab = 4.0f;  // extra hit area on each side of the gap
-constexpr float kHeaderHeight = 24.0f; // matches RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT
+constexpr float kSplitterSize = 4.0f; // visible gap between panels
+constexpr float kSplitterGrab = 4.0f; // extra hit area on each side of the gap
+constexpr float kHeaderHeight = EditorLayout::kHeaderHeight;
+
+// A panel: a rounded card with its caption in the header row.
+void drawPanel(Rectangle r, const char* caption) {
+    if (r.width <= 0.0f || r.height <= 0.0f) {
+        return;
+    }
+    ui::fill(r, theme::kPanel, theme::kPanelRadius);
+    DrawLineV({r.x + 1.0f, r.y + kHeaderHeight - 0.5f}, {r.x + r.width - 1.0f, r.y + kHeaderHeight - 0.5f},
+              theme::kBorder);
+    ui::caption({r.x + theme::kSpace3, r.y, r.width, kHeaderHeight}, caption);
+}
 
 constexpr float kMinSideWidth = 160.0f;
 constexpr float kMinCenterWidth = 320.0f;
@@ -76,21 +88,26 @@ void EditorLayout::update(Rectangle area, bool allowInput) {
 }
 
 void EditorLayout::draw() const {
-    GuiPanel(m_entities, "Entities");
-    GuiPanel(m_scene, "Scene");
-    GuiPanel(m_logs, "Logs");
-    GuiPanel(m_details, "Details");
+    drawPanel(m_entities, "ENTITIES");
+    drawPanel(m_scene, "SCENE");
+    if (m_logsOpen) {
+        drawPanel(m_logs, "LOGS");
+    }
+    drawPanel(m_details, "DETAILS");
 
     const Splitter highlight = (m_active != Splitter::None) ? m_active : m_hovered;
     if (highlight != Splitter::None) {
-        const Color accent = GetColor(static_cast<unsigned int>(GuiGetStyle(DEFAULT, BORDER_COLOR_FOCUSED)));
-        DrawRectangleRec(splitterRect(highlight), Fade(accent, m_active != Splitter::None ? 0.9f : 0.5f));
+        const Rectangle r = splitterRect(highlight);
+        const Rectangle line = highlight == Splitter::Logs ? Rectangle{r.x, r.y + r.height / 2.0f - 1.0f, r.width, 2.0f}
+                                                           : Rectangle{r.x + r.width / 2.0f - 1.0f, r.y, 2.0f, r.height};
+        DrawRectangleRec(line, Fade(theme::kAccent, m_active != Splitter::None ? 1.0f : 0.6f));
     }
 }
 
 Rectangle EditorLayout::contentOf(Rectangle panel) {
+    // Inset at the bottom so content doesn't cover the panel's rounded corners.
     return {panel.x + 1.0f, panel.y + kHeaderHeight, std::max(0.0f, panel.width - 2.0f),
-            std::max(0.0f, panel.height - kHeaderHeight - 1.0f)};
+            std::max(0.0f, panel.height - kHeaderHeight - theme::kPanelRadius)};
 }
 
 Rectangle EditorLayout::splitterRect(Splitter s) const {
@@ -108,7 +125,7 @@ Rectangle EditorLayout::splitterRect(Splitter s) const {
 }
 
 EditorLayout::Splitter EditorLayout::splitterAt(Vector2 point) const {
-    if (CheckCollisionPointRec(point, expanded(splitterRect(Splitter::Logs), 0.0f, kSplitterGrab))) {
+    if (m_logsOpen && CheckCollisionPointRec(point, expanded(splitterRect(Splitter::Logs), 0.0f, kSplitterGrab))) {
         return Splitter::Logs;
     }
     if (CheckCollisionPointRec(point, expanded(splitterRect(Splitter::Left), kSplitterGrab, 0.0f))) {
@@ -147,10 +164,10 @@ void EditorLayout::computeRects() {
 
     const float centerX = m_entities.x + m_entities.width + kSplitterSize;
     const float centerW = std::max(0.0f, m_details.x - kSplitterSize - centerX);
-    const float sceneH = std::max(0.0f, h - m_logsHeight - kSplitterSize);
+    const float sceneH = m_logsOpen ? std::max(0.0f, h - m_logsHeight - kSplitterSize) : h;
 
     m_scene = {centerX, y, centerW, sceneH};
-    m_logs = {centerX, y + sceneH + kSplitterSize, centerW, m_logsHeight};
+    m_logs = m_logsOpen ? Rectangle{centerX, y + sceneH + kSplitterSize, centerW, m_logsHeight} : Rectangle{};
 }
 
 void EditorLayout::updateCursor() {

@@ -25,7 +25,7 @@ struct Document {
 
     std::string displayName() const {
         if (!path.empty()) {
-            return path.filename().string();
+            return path.stem().string();
         }
         return untitledNumber <= 1 ? std::string("Untitled") : "Untitled " + std::to_string(untitledNumber);
     }

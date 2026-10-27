@@ -10,10 +10,13 @@
 //   | Entities  |          Scene            |  Details  |
 //   |           |                           |           |
 //   |           +---------------------------+           |
-//   |           |          Logs             |           |
+//   |           |     Logs (when open)      |           |
 //   +-----------+---------------------------+-----------+
 class EditorLayout {
 public:
+    // Height of each panel's header row (caption and the panel's own controls).
+    static constexpr float kHeaderHeight = 34.0f;
+
     // Recomputes panel rectangles to fill `area` and, if `allowInput`, handles splitter dragging.
     void update(Rectangle area, bool allowInput = true);
 
@@ -30,6 +33,10 @@ public:
         m_rightWidth = detailsWidth;
         m_logsHeight = logsHeight;
     }
+
+    // The Logs panel can be closed; the Scene panel then takes its place.
+    bool logsOpen() const { return m_logsOpen; }
+    void setLogsOpen(bool open) { m_logsOpen = open; }
 
     // Whole panel rectangles, header included.
     Rectangle entitiesBounds() const { return m_entities; }
@@ -60,6 +67,7 @@ private:
     float m_leftWidth = 300.0f;
     float m_rightWidth = 340.0f;
     float m_logsHeight = 220.0f;
+    bool m_logsOpen = false;
 
     Rectangle m_area{};
     Rectangle m_entities{};

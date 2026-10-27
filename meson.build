@@ -76,6 +76,7 @@ editor_lib = static_library(
     'src/SceneExporter.cpp',
     'src/SceneSerializer.cpp',
     'src/SceneView.cpp',
+    'src/Theme.cpp',
     'src/Widgets.cpp',
     'src/Workspace.cpp',
   ),

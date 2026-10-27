@@ -3,6 +3,7 @@
 #include "ComponentRegistry.h"
 #include "Components.h"
 #include "History.h"
+#include "Theme.h"
 #include "Widgets.h"
 
 #include <raygui.h>
@@ -10,10 +11,10 @@
 #include <algorithm>
 
 namespace {
-constexpr float kPadding = 8.0f;
-constexpr float kHeaderHeight = 28.0f;
+constexpr float kPadding = theme::kSpace2;
+constexpr float kHeaderHeight = 30.0f;
 constexpr float kMenuItemHeight = 28.0f;
-constexpr Color kRemoveColor{230, 90, 90, 255};
+constexpr Color kRemoveColor = theme::kError;
 } // namespace
 
 void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt::entity& selected) {
@@ -27,7 +28,7 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
 
     if (selected == entt::null || !registry.valid(selected)) {
         ui::label({content.x + 10.0f, content.y + 6.0f, content.width - 20.0f, ui::kRowHeight},
-                  "No entity selected.", ui::styleColor(TEXT_COLOR_DISABLED));
+                  "Select an entity to see its components.", theme::kTextFaint);
         return;
     }
 
@@ -64,13 +65,13 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
     const ComponentScope scope = scene.isUI(selected) ? ComponentScope::UI : ComponentScope::World;
     bool deleteRequested = false;
     auto& name = registry.get<NameComponent>(selected).name;
-    GuiDrawIcon(entityIcon(scene, selected), static_cast<int>(x + 10.0f), static_cast<int>(y + 4.0f), 1,
-                ui::styleColor(TEXT_COLOR_NORMAL));
+    GuiDrawIcon(entityIcon(scene, selected), static_cast<int>(x + 12.0f), static_cast<int>(y + 4.0f), 1, theme::kAccentHover);
     if (isRoot) {
-        ui::label({x + 34.0f, y, w - 44.0f, ui::kFieldHeight}, name.c_str(), ui::styleColor(TEXT_COLOR_NORMAL));
+        ui::drawText(theme::bold(), name.c_str(), {x + 36.0f, y + (ui::kFieldHeight - theme::kFontSize) / 2.0f},
+                     theme::kFontSize, theme::kText);
         y += ui::kFieldHeight + kPadding;
         const char* about = scene.isWorld(selected) ? "Root of the scene." : "Root of the UI, laid out on the screen.";
-        ui::label({x + 10.0f, y, w - 20.0f, ui::kFieldHeight}, about, ui::styleColor(TEXT_COLOR_DISABLED));
+        ui::label({x + 6.0f, y, w - 20.0f, ui::kFieldHeight}, about, theme::kTextFaint);
         y += ui::kFieldHeight;
     } else {
         ui::textField({x + 34.0f, y, w - 74.0f, ui::kFieldHeight}, name);
@@ -78,6 +79,7 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
         if (ui::iconButton(deleteButton, ICON_BIN, kRemoveColor)) {
             deleteRequested = true;
         }
+        ui::tooltip(deleteButton, "Delete the entity");
     }
     y += ui::kFieldHeight + kPadding * 1.5f;
 
@@ -89,25 +91,27 @@ void DetailsPanel::draw(Rectangle content, Scene& scene, History& history, entt:
             continue;
         }
 
-        const Rectangle header{x + 4.0f, y, w - 8.0f, kHeaderHeight};
-        const Rectangle removeButton{header.x + header.width - 26.0f, header.y + 3.0f, 22.0f, 22.0f};
+        const Rectangle header{x + 6.0f, y, w - 12.0f, kHeaderHeight};
+        const Rectangle removeButton{header.x + header.width - 26.0f, header.y + 4.0f, 22.0f, 22.0f};
         const bool overRemove = type.removable && CheckCollisionPointRec(mouse, removeButton);
 
-        DrawRectangleRec(header, ui::styleColor(ui::hovered(header) && !overRemove ? BASE_COLOR_FOCUSED : BASE_COLOR_NORMAL));
-        DrawRectangleLinesEx(header, 1.0f, ui::styleColor(BORDER_COLOR_NORMAL));
+        ui::fill(header, ui::hovered(header) && !overRemove ? theme::kFieldHover : theme::kRaised);
         if (!overRemove && ui::clicked(header)) {
             m_collapsed[i] = !m_collapsed[i];
         }
 
-        const Color text = ui::styleColor(TEXT_COLOR_NORMAL);
         const int iconY = static_cast<int>(header.y + (kHeaderHeight - 16.0f) / 2.0f);
-        GuiDrawIcon(m_collapsed[i] ? ICON_ARROW_RIGHT_FILL : ICON_ARROW_DOWN_FILL, static_cast<int>(header.x + 4.0f),
-                    iconY, 1, text);
-        GuiDrawIcon(type.icon, static_cast<int>(header.x + 24.0f), iconY, 1, text);
-        ui::label({header.x + 44.0f, header.y, header.width - 76.0f, header.height}, type.name, text);
+        GuiDrawIcon(m_collapsed[i] ? ICON_ARROW_RIGHT_FILL : ICON_ARROW_DOWN_FILL, static_cast<int>(header.x + 6.0f), iconY,
+                    1, theme::kTextFaint);
+        GuiDrawIcon(type.icon, static_cast<int>(header.x + 26.0f), iconY, 1, theme::kTextDim);
+        ui::drawText(theme::bold(), type.name, {header.x + 48.0f, header.y + (kHeaderHeight - theme::kFontSize) / 2.0f},
+                     theme::kFontSize, theme::kText);
 
-        if (type.removable && ui::iconButton(removeButton, ICON_CROSS_SMALL, kRemoveColor)) {
-            removeIndex = static_cast<int>(i);
+        if (type.removable) {
+            if (ui::iconButton(removeButton, ICON_CROSS_SMALL, kRemoveColor)) {
+                removeIndex = static_cast<int>(i);
+            }
+            ui::tooltip(removeButton, "Remove the component");
         }
         y += kHeaderHeight + 4.0f;
 
@@ -174,13 +178,14 @@ int DetailsPanel::drawAddMenu(Rectangle anchor, Rectangle content, const entt::r
     }
     m_addMenuRect = menu;
 
-    DrawRectangleRec(menu, ui::styleColor(BACKGROUND_COLOR));
-    DrawRectangleLinesEx(menu, 1.0f, ui::styleColor(BORDER_COLOR_FOCUSED));
+    ui::fill({menu.x - 2.0f, menu.y, menu.width + 4.0f, menu.height + 4.0f}, Fade(BLACK, 0.25f), theme::kPanelRadius + 2.0f);
+    ui::fill(menu, theme::kRaised, theme::kPanelRadius);
+    ui::outline(menu, theme::kBorder, theme::kPanelRadius);
 
     int chosen = -1;
     if (available.empty()) {
         ui::label({menu.x + 10.0f, menu.y + 2.0f, menu.width - 20.0f, kMenuItemHeight}, "All components added",
-                  ui::styleColor(TEXT_COLOR_DISABLED));
+                  theme::kTextFaint);
     }
     for (std::size_t i = 0; i < available.size(); ++i) {
         const ComponentType& type = types[static_cast<std::size_t>(available[i])];
@@ -188,9 +193,9 @@ int DetailsPanel::drawAddMenu(Rectangle anchor, Rectangle content, const entt::r
                              kMenuItemHeight};
         const bool hot = ui::hovered(item);
         if (hot) {
-            DrawRectangleRec(item, ui::styleColor(BASE_COLOR_PRESSED));
+            ui::fill(item, theme::kAccent);
         }
-        const Color text = ui::styleColor(hot ? TEXT_COLOR_PRESSED : TEXT_COLOR_NORMAL);
+        const Color text = hot ? WHITE : theme::kText;
         GuiDrawIcon(type.icon, static_cast<int>(item.x + 8.0f), static_cast<int>(item.y + (kMenuItemHeight - 16.0f) / 2.0f),
                     1, text);
         ui::label({item.x + 32.0f, item.y, item.width - 40.0f, item.height}, type.name, text);

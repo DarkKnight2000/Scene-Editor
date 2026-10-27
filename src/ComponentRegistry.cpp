@@ -212,11 +212,6 @@ void vec2Row(ui::PropertyGrid& grid, const char* label, Vector2& v, float speed)
     ui::dragFloat(y, &v.y, speed, "Y");
 }
 
-void checkboxWithLabel(Rectangle r, const char* label, bool& value) {
-    ui::checkbox(r, &value);
-    ui::label({r.x + 20.0f, r.y, r.width - 20.0f, r.height}, label, ui::styleColor(TEXT_COLOR_NORMAL));
-}
-
 void colorRow(ui::PropertyGrid& grid, const char* label, Color& color) {
     const Rectangle r = grid.row(label);
     grid.growLastRow(ui::colorField(r, &color) - r.height);
@@ -263,12 +258,12 @@ void drawTransform(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     ui::dragFloat(grid.row("Rotation"), &t.rotation, 0.5f, nullptr, "%.1f deg");
     vec2Row(grid, "Scale", t.scale, 0.01f);
 
-    // Inherit: [x] Rotate  [x] Scale
-    Rectangle rotationBox;
-    Rectangle scaleBox;
-    ui::splitHalves(grid.row("Inherit"), rotationBox, scaleBox);
-    checkboxWithLabel(rotationBox, "Rotate", t.inheritRotation);
-    checkboxWithLabel(scaleBox, "Scale", t.inheritScale);
+    // Inherit: two toggles, on while the parent's rotation / scale is followed.
+    Rectangle rotationToggle;
+    Rectangle scaleToggle;
+    ui::splitHalves(grid.row("Inherit"), rotationToggle, scaleToggle);
+    ui::toggle(rotationToggle, "Rotation", &t.inheritRotation);
+    ui::toggle(scaleToggle, "Scale", &t.inheritScale);
 
     if (following) {
         // Where the entity ends up after its parents (and the World) are applied.

@@ -2,6 +2,7 @@
 #include <raygui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <optional>
@@ -18,12 +19,14 @@
 #include "ProjectExport.h"
 #include "ProjectLauncher.h"
 #include "SceneView.h"
+#include "Theme.h"
 #include "Widgets.h"
 #include "Workspace.h"
 
 namespace {
-constexpr float kToolbarHeight = 36.0f;
-constexpr float kTabBarHeight = 34.0f;
+constexpr float kToolbarHeight = 44.0f;
+constexpr float kTabBarHeight = 36.0f;
+constexpr float kStatusBarHeight = 28.0f;
 constexpr int kLauncherWidth = 900;
 constexpr int kLauncherHeight = 580;
 constexpr int kEditorMinWidth = 1024; // below this the three panels get too cramped
@@ -84,24 +87,25 @@ int exportFromCommandLine(const std::filesystem::path& path) {
     return exportProject(project) ? 0 : 1;
 }
 
-void applyDarkStyle() {
-    struct Entry {
-        int property;
-        unsigned int color;
-    };
-    constexpr Entry colors[] = {
-        {BORDER_COLOR_NORMAL, 0x4a4a50ff},  {BASE_COLOR_NORMAL, 0x333338ff},
-        {TEXT_COLOR_NORMAL, 0xd4d4d8ff},    {BORDER_COLOR_FOCUSED, 0x3d8fe0ff},
-        {BASE_COLOR_FOCUSED, 0x3b3b42ff},   {TEXT_COLOR_FOCUSED, 0xffffffff},
-        {BORDER_COLOR_PRESSED, 0x3d8fe0ff}, {BASE_COLOR_PRESSED, 0x2a5f99ff},
-        {TEXT_COLOR_PRESSED, 0xffffffff},   {BORDER_COLOR_DISABLED, 0x3a3a3fff},
-        {BASE_COLOR_DISABLED, 0x2a2a2eff},  {TEXT_COLOR_DISABLED, 0x6a6a70ff},
-        {LINE_COLOR, 0x3e3e44ff},           {BACKGROUND_COLOR, 0x252529ff},
-    };
-    for (const Entry& e : colors) {
-        GuiSetStyle(DEFAULT, e.property, static_cast<int>(e.color));
+// Ctrl+= / Ctrl+- / Ctrl+0: UI scale up / down / back to 100%. Returns true if it changed.
+bool handleUiScaleKeys(EditorConfig& config) {
+    if (!IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_RIGHT_CONTROL)) {
+        return false;
     }
-    GuiSetStyle(DEFAULT, TEXT_SIZE, 20);
+    float scale = theme::uiScale();
+    if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
+        scale += 0.125f;
+    } else if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
+        scale -= 0.125f;
+    } else if (IsKeyPressed(KEY_ZERO) || IsKeyPressed(KEY_KP_0)) {
+        scale = 1.0f;
+    } else {
+        return false;
+    }
+    theme::setUiScale(scale);
+    config.uiScale = theme::uiScale();
+    logInfo("UI scale " + std::to_string(static_cast<int>(std::lround(config.uiScale * 100.0f))) + "%");
+    return true;
 }
 
 // Borderless fullscreen done by hand: an undecorated window covering the monitor.
@@ -166,12 +170,14 @@ void enterLauncherWindow() {
     ClearWindowState(FLAG_WINDOW_UNDECORATED);
     RestoreWindow();
     SetWindowState(FLAG_WINDOW_RESIZABLE); // so the size can change; cleared again below
-    SetWindowMinSize(kLauncherWidth, kLauncherHeight);
-    SetWindowSize(kLauncherWidth, kLauncherHeight);
+    const int launcherWidth = static_cast<int>(std::lround(kLauncherWidth * theme::uiScale()));
+    const int launcherHeight = static_cast<int>(std::lround(kLauncherHeight * theme::uiScale()));
+    SetWindowMinSize(launcherWidth, launcherHeight);
+    SetWindowSize(launcherWidth, launcherHeight);
     const int monitor = GetCurrentMonitor();
     const Vector2 origin = GetMonitorPosition(monitor);
-    SetWindowPosition(static_cast<int>(origin.x) + (GetMonitorWidth(monitor) - kLauncherWidth) / 2,
-                      static_cast<int>(origin.y) + (GetMonitorHeight(monitor) - kLauncherHeight) / 2);
+    SetWindowPosition(static_cast<int>(origin.x) + (GetMonitorWidth(monitor) - launcherWidth) / 2,
+                      static_cast<int>(origin.y) + (GetMonitorHeight(monitor) - launcherHeight) / 2);
     ClearWindowState(FLAG_WINDOW_RESIZABLE);
     SetWindowTitle("Scene Editor");
 }
@@ -190,12 +196,17 @@ std::optional<Project> runLauncher(EditorConfig& config, const std::filesystem::
     enterLauncherWindow();
     ProjectLauncher launcher(config);
     while (!WindowShouldClose()) {
+        if (handleUiScaleKeys(config)) {
+            enterLauncherWindow();
+        }
         ui::beginFrame();
         BeginDrawing();
-        ClearBackground(Color{30, 30, 34, 255});
-        const std::optional<Project> project =
-            launcher.draw({0.0f, 0.0f, static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())});
+        ClearBackground(theme::kBackground);
+        theme::beginFrame();
+        const std::optional<Project> project = launcher.draw({0.0f, 0.0f, theme::screenWidth(), theme::screenHeight()});
+        ui::drawPopups();
         ui::endFrame();
+        theme::endFrame();
         EndDrawing();
         if (project) {
             saveConfig(configFile, config); // recent projects
@@ -213,7 +224,9 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
 
     EditorLayout layout;
     layout.setSizes(config.layout.entitiesWidth, config.layout.detailsWidth, config.layout.logsHeight);
+    layout.setLogsOpen(config.layout.logsOpen);
     LogsPanel logsPanel;
+    logsPanel.setProjectRoot(project.root());
     SceneView sceneView;
     Workspace workspace(project);
     workspace.setPlaySettings(config.play);
@@ -233,13 +246,19 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
         if (IsKeyPressed(KEY_F11)) {
             toggleFullscreen(fullscreen);
         }
+        if (!ui::isTextEditing()) {
+            handleUiScaleKeys(config);
+        }
 
-        const float width = static_cast<float>(GetScreenWidth());
-        const float height = static_cast<float>(GetScreenHeight());
+        // Logical pixels (see Theme.h): toolbar, tabs, the panels with a small margin, status bar.
+        const float width = theme::screenWidth();
+        const float height = theme::screenHeight();
+        constexpr float kMargin = 4.0f;
         const Rectangle toolbar{0.0f, 0.0f, width, kToolbarHeight};
         const Rectangle tabBar{0.0f, kToolbarHeight, width, kTabBarHeight};
         const float panelsTop = kToolbarHeight + kTabBarHeight;
-        const Rectangle panels{0.0f, panelsTop, width, height - panelsTop};
+        const Rectangle panels{kMargin, panelsTop, width - 2.0f * kMargin, height - panelsTop - kStatusBarHeight - kMargin};
+        const Rectangle statusBar{0.0f, height - kStatusBarHeight, width, kStatusBarHeight};
 
         ui::beginFrame();
         workspace.beginFrame(); // tab changes queued last frame happen here
@@ -253,7 +272,8 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
         sceneView.update(doc.scene, doc.selected, layout.sceneContent(), display, !modal);
 
         BeginDrawing();
-        ClearBackground(Color{30, 30, 34, 255});
+        ClearBackground(theme::kBackground);
+        theme::beginFrame();
 
         // A modal dialog blocks input to everything drawn before it.
         if (modal) {
@@ -265,14 +285,20 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
         layout.draw();
 
         sceneView.draw(doc.scene, layout.sceneContent(), doc.selected, display);
-        const Rectangle sceneHeader{layout.sceneBounds().x, layout.sceneBounds().y, layout.sceneBounds().width, 24.0f};
+        const Rectangle sceneHeader{layout.sceneBounds().x, layout.sceneBounds().y, layout.sceneBounds().width,
+                                    EditorLayout::kHeaderHeight};
         sceneView.drawHeader(sceneHeader, layout.sceneContent(), display);
 
         // Panels with controls draw last so their popups and tooltips overlap neighbouring panels.
         doc.detailsPanel.draw(layout.detailsContent(), doc.scene, doc.history, doc.selected);
         doc.entitiesPanel.draw(layout.entitiesBounds(), layout.entitiesContent(), doc.scene, doc.history,
                                doc.selected);
-        logsPanel.draw(layout.logsBounds(), layout.logsContent());
+        if (layout.logsOpen()) {
+            logsPanel.draw(layout.logsBounds(), layout.logsContent());
+        }
+        bool logsOpen = layout.logsOpen();
+        logsPanel.drawStatusBar(statusBar, logsOpen);
+        layout.setLogsOpen(logsOpen);
 
         if (modal) {
             GuiUnlock();
@@ -282,6 +308,7 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
         doc.history.endFrame(doc.scene);
         ui::endFrame();
 
+        theme::endFrame();
         EndDrawing();
     }
 
@@ -295,7 +322,7 @@ Workspace::Exit runEditor(EditorConfig& config, const std::filesystem::path& con
 
     // Editor-wide: window and panels, and whether to reopen this project next time.
     captureWindowConfig(config.window, fullscreen);
-    config.layout = {layout.entitiesWidth(), layout.detailsWidth(), layout.logsHeight()};
+    config.layout = {layout.entitiesWidth(), layout.detailsWidth(), layout.logsHeight(), layout.logsOpen()};
     const Workspace::Exit exit = workspace.exitKind();
     config.lastProject = exit == Workspace::Exit::Quit ? project.file : std::filesystem::path{};
     saveConfig(configFile, config);
@@ -321,7 +348,6 @@ int main(int argc, char** argv) {
     InitWindow(kLauncherWidth, kLauncherHeight, "Scene Editor");
     SetExitKey(KEY_NULL); // Esc shouldn't close the editor; use Alt+F4
     SetTargetFPS(60);
-    applyDarkStyle();
 
     const std::filesystem::path configFile = configPath();
     EditorConfig config;
@@ -329,6 +355,7 @@ int main(int argc, char** argv) {
     if (!loadEditorConfig(configFile, config, error)) {
         logWarning("Editor config ignored (" + error + "): " + configFile.string());
     }
+    theme::load(config.uiScale);
     logInfo("Editor config: " + configFile.string());
 
     // --open: that project. Otherwise reopen the project that was open when the editor was
@@ -367,6 +394,7 @@ int main(int argc, char** argv) {
         project.reset(); // Close Project: back to the launcher
     }
 
+    theme::unload();
     CloseWindow();
     return 0;
 }

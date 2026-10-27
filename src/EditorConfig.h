@@ -24,7 +24,11 @@ struct EditorConfig {
         float entitiesWidth = 300.0f;
         float detailsWidth = 340.0f;
         float logsHeight = 220.0f;
+        bool logsOpen = false; // the Logs panel above the status bar
     } layout;
+
+    // UI scale: 1 = 100%. Ctrl+= / Ctrl+- / Ctrl+0 change it.
+    float uiScale = 1.0f;
 
     // Project files, most recently opened first.
     std::vector<std::filesystem::path> recentProjects;

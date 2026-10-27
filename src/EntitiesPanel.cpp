@@ -5,7 +5,9 @@
 
 #include "ComponentRegistry.h"
 #include "Components.h"
+#include "EditorLayout.h"
 #include "History.h"
+#include "Theme.h"
 #include "Widgets.h"
 
 #include <algorithm>
@@ -14,30 +16,21 @@
 
 namespace {
 constexpr float kRowHeight = 28.0f;
-constexpr float kAddButtonSize = 20.0f;
-constexpr float kHeaderHeight = 24.0f;
+constexpr float kAddButtonSize = 24.0f;
+constexpr float kHeaderHeight = EditorLayout::kHeaderHeight;
 constexpr float kIndent = 18.0f;
 
-Color styleColor(int property) {
-    return GetColor(static_cast<unsigned int>(GuiGetStyle(DEFAULT, property)));
-}
-
-// Button with a pixel-crisp "+" glyph.
+// Flat button with a pixel-crisp "+" glyph.
 bool plusButton(Rectangle bounds, const char* tooltip) {
-    GuiEnableTooltip();
-    GuiSetTooltip(tooltip);
-    const bool pressedHere = ui::pressStartedOn(bounds);
-    const bool clicked = GuiButton(bounds, nullptr) != 0 && pressedHere;
-    GuiSetTooltip(nullptr);
-    GuiDisableTooltip();
-
-    const bool hovered = !GuiIsLocked() && CheckCollisionPointRec(GetMousePosition(), bounds);
-    const Color color = styleColor(hovered ? TEXT_COLOR_FOCUSED : TEXT_COLOR_NORMAL);
-    const float cx = bounds.x + bounds.width / 2.0f;
-    const float cy = bounds.y + bounds.height / 2.0f;
-    const float arm = std::floor(bounds.width * 0.3f);
+    const bool hot = ui::hovered(bounds);
+    const bool clicked = ui::button(bounds, "", ui::ButtonKind::Ghost);
+    const Color color = hot ? theme::kText : theme::kTextDim;
+    const float cx = std::floor(bounds.x + bounds.width / 2.0f);
+    const float cy = std::floor(bounds.y + bounds.height / 2.0f);
+    const float arm = 6.0f;
     DrawRectangleRec({cx - arm, cy - 1.0f, arm * 2.0f, 2.0f}, color);
     DrawRectangleRec({cx - 1.0f, cy - arm, 2.0f, arm * 2.0f}, color);
+    ui::tooltip(bounds, tooltip);
     return clicked;
 }
 } // namespace
@@ -49,8 +42,7 @@ void EntitiesPanel::draw(Rectangle panel, Rectangle content, Scene& scene, Histo
     // With the Canvas or a UI element selected it adds a UI element inside the selection;
     // otherwise an entity under the World.
     const float pad = (kHeaderHeight - kAddButtonSize) / 2.0f;
-    const Rectangle addBounds{panel.x + panel.width - kAddButtonSize - pad - 1.0f, panel.y + pad,
-                              kAddButtonSize, kAddButtonSize};
+    const Rectangle addBounds{panel.x + panel.width - kAddButtonSize - 6.0f, panel.y + pad, kAddButtonSize, kAddButtonSize};
     const bool addUI = selected != entt::null && scene.registry().valid(selected) && scene.isUI(selected);
     if (plusButton(addBounds, addUI ? "Add UI element inside the selection" : "Add entity")) {
         selected = addUI ? history.createUIElement(scene, selected) : history.createEntity(scene);
@@ -139,34 +131,33 @@ void EntitiesPanel::drawList(Rectangle content, Scene& scene, entt::entity& sele
 
         const bool hovered = !m_dragging && canInteract && CheckCollisionPointRec(mouse, row);
         const bool isSelected = entity == selected;
+        const Rectangle highlight{row.x + 4.0f, row.y + 1.0f, row.width - 8.0f, row.height - 2.0f};
         if (isSelected) {
-            DrawRectangleRec(row, styleColor(BASE_COLOR_PRESSED));
+            ui::fill(highlight, theme::kSelection);
+            ui::fill({highlight.x, highlight.y + 5.0f, 2.0f, highlight.height - 10.0f}, theme::kAccent, 1.0f);
         } else if (hovered) {
-            DrawRectangleRec(row, styleColor(BASE_COLOR_FOCUSED));
+            ui::fill(highlight, Color{255, 255, 255, 10});
         }
 
         const bool isDragged = m_dragging && entity == m_pressed;
-        const Color textColor =
-            styleColor(isDragged ? TEXT_COLOR_DISABLED : isSelected ? TEXT_COLOR_PRESSED : TEXT_COLOR_NORMAL);
+        const Color textColor = isDragged ? theme::kTextFaint : isSelected ? WHITE : theme::kText;
+        const Color iconColor = isDragged ? theme::kTextFaint : isSelected ? theme::kAccentHover : theme::kTextDim;
         // Guide line from the parent's icon down to this row.
         if (depth > 0) {
             const float guideX = row.x + indent - kIndent + 15.0f;
-            DrawLineV({guideX, parentBottom[depth - 1] - 4.0f}, {guideX, row.y + kRowHeight / 2.0f}, styleColor(LINE_COLOR));
-            DrawLineV({guideX, row.y + kRowHeight / 2.0f}, {guideX + 8.0f, row.y + kRowHeight / 2.0f}, styleColor(LINE_COLOR));
+            DrawLineV({guideX, parentBottom[depth - 1] - 4.0f}, {guideX, row.y + kRowHeight / 2.0f}, theme::kBorder);
+            DrawLineV({guideX, row.y + kRowHeight / 2.0f}, {guideX + 8.0f, row.y + kRowHeight / 2.0f}, theme::kBorder);
         }
         GuiDrawIcon(entityIcon(scene, entity), static_cast<int>(row.x + indent) + 8,
-                    static_cast<int>(row.y + (kRowHeight - 16.0f) / 2.0f), 1, textColor);
-        const int fontSize = GuiGetStyle(DEFAULT, TEXT_SIZE);
+                    static_cast<int>(row.y + (kRowHeight - 16.0f) / 2.0f), 1, iconColor);
         const std::string& name = scene.registry().get<NameComponent>(entity).name;
-        DrawTextEx(GuiGetFont(), name.c_str(),
-                   {row.x + indent + 32.0f, row.y + (kRowHeight - static_cast<float>(fontSize)) / 2.0f},
-                   static_cast<float>(fontSize), static_cast<float>(GuiGetStyle(DEFAULT, TEXT_SPACING)),
-                   textColor);
+        ui::drawText(theme::font(), name.c_str(), {row.x + indent + 32.0f, row.y + (kRowHeight - theme::kFontSize) / 2.0f},
+                     theme::kFontSize, textColor);
     }
 
     // Drop indicator: a line between rows, or an outline around the new parent.
     if (drop.valid) {
-        const Color accent = styleColor(BORDER_COLOR_FOCUSED);
+        const Color accent = theme::kAccent;
         if (drop.intoRow) {
             DrawRectangleLinesEx(drop.rowRect, 2.0f, accent);
         } else {
@@ -250,15 +241,13 @@ EntitiesPanel::DropTarget EntitiesPanel::findDropTarget(const Scene& scene, cons
 
 void EntitiesPanel::drawDragGhost(const Scene& scene, Vector2 mouse) const {
     const char* name = scene.registry().get<NameComponent>(m_pressed).name.c_str();
-    const float fontSize = static_cast<float>(GuiGetStyle(DEFAULT, TEXT_SIZE));
-    const float spacing = static_cast<float>(GuiGetStyle(DEFAULT, TEXT_SPACING));
-    const Vector2 extent = MeasureTextEx(GuiGetFont(), name, fontSize, spacing);
-    const Rectangle box{mouse.x + 14.0f, mouse.y + 8.0f, extent.x + 40.0f, kRowHeight};
+    const float width = ui::textWidth(theme::font(), name, theme::kFontSize);
+    const Rectangle box{mouse.x + 14.0f, mouse.y + 8.0f, width + 42.0f, kRowHeight};
 
-    DrawRectangleRec(box, Fade(styleColor(BASE_COLOR_PRESSED), 0.85f));
-    DrawRectangleLinesEx(box, 1.0f, styleColor(BORDER_COLOR_FOCUSED));
+    ui::fill({box.x - 1.0f, box.y + 1.0f, box.width + 2.0f, box.height + 2.0f}, Fade(BLACK, 0.3f));
+    ui::fill(box, theme::kAccent);
     GuiDrawIcon(entityIcon(scene, m_pressed), static_cast<int>(box.x + 8.0f), static_cast<int>(box.y + (kRowHeight - 16.0f) / 2.0f), 1,
-                styleColor(TEXT_COLOR_PRESSED));
-    DrawTextEx(GuiGetFont(), name, {box.x + 30.0f, box.y + (kRowHeight - fontSize) / 2.0f}, fontSize, spacing,
-               styleColor(TEXT_COLOR_PRESSED));
+                WHITE);
+    ui::drawText(theme::font(), name, {box.x + 30.0f, box.y + (kRowHeight - theme::kFontSize) / 2.0f}, theme::kFontSize,
+                 WHITE);
 }

@@ -118,7 +118,9 @@ bool loadEditorConfig(const std::filesystem::path& path, EditorConfig& config, s
         read(*it, "entitiesWidth", config.layout.entitiesWidth);
         read(*it, "detailsWidth", config.layout.detailsWidth);
         read(*it, "logsHeight", config.layout.logsHeight);
+        read(*it, "logsOpen", config.layout.logsOpen);
     }
+    read(j, "uiScale", config.uiScale);
     if (const auto it = j.find("projects"); it != j.end() && it->is_object()) {
         if (const auto recent = it->find("recent"); recent != it->end() && recent->is_array()) {
             for (const json& entry : *recent) {
@@ -174,7 +176,9 @@ bool saveEditorConfig(const std::filesystem::path& path, const EditorConfig& con
         {"layout",
          {{"entitiesWidth", config.layout.entitiesWidth},
           {"detailsWidth", config.layout.detailsWidth},
-          {"logsHeight", config.layout.logsHeight}}},
+          {"logsHeight", config.layout.logsHeight},
+          {"logsOpen", config.layout.logsOpen}}},
+        {"uiScale", config.uiScale},
         {"projects",
          {{"recent", std::move(recent)},
           {"last", toUtf8(config.lastProject)},

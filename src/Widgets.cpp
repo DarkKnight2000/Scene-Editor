@@ -1,5 +1,7 @@
 #include "Widgets.h"
 
+#include "Theme.h"
+
 #include <raygui.h>
 
 #include <algorithm>
@@ -8,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <string>
 #include <vector>
 
 // Defined in external/raygui/raygui_impl.c.
@@ -48,6 +51,12 @@ struct State {
     bool interactive = true;
     int cursor = MOUSE_CURSOR_DEFAULT;
     int appliedCursor = MOUSE_CURSOR_DEFAULT;
+
+    // Tooltip: shown once the mouse rests on the same control for a moment.
+    Rectangle tipRect{};
+    double tipSince = 0.0;
+    std::string tipText;
+    bool tipSeen = false;
 };
 
 State g;
@@ -58,16 +67,17 @@ void applyClip() {
         EndScissorMode();
         return;
     }
-    const Rectangle& r = g_clipStack.back();
-    BeginScissorMode(static_cast<int>(r.x), static_cast<int>(r.y), static_cast<int>(r.width),
-                     static_cast<int>(r.height));
+    const Rectangle r = theme::toPixels(g_clipStack.back());
+    BeginScissorMode(static_cast<int>(std::floor(r.x)), static_cast<int>(std::floor(r.y)),
+                     static_cast<int>(std::ceil(r.width)), static_cast<int>(std::ceil(r.height)));
 }
 
+// Fields: a flat fill that lightens on hover; an accent outline while in use.
 void drawFieldFrame(Rectangle r, bool hot, bool pressed) {
-    const int base = pressed ? BASE_COLOR_PRESSED : hot ? BASE_COLOR_FOCUSED : BASE_COLOR_NORMAL;
-    const int border = (hot || pressed) ? BORDER_COLOR_FOCUSED : BORDER_COLOR_NORMAL;
-    DrawRectangleRec(r, styleColor(base));
-    DrawRectangleLinesEx(r, 1.0f, styleColor(border));
+    fill(r, hot || pressed ? theme::kFieldHover : theme::kField);
+    if (pressed) {
+        outline(r, theme::kAccent);
+    }
 }
 
 void drawTextIn(Rectangle r, const char* text, Color color, bool center) {
@@ -80,6 +90,20 @@ void drawTextIn(Rectangle r, const char* text, Color color, bool center) {
     pushClip(r);
     DrawTextEx(font, text, {std::floor(x), std::floor(y)}, size, spacing, color);
     popClip();
+}
+
+// "#12#Save" (raygui's GuiIconText) -> icon 12, and `text` moves past the prefix.
+int splitIcon(const char*& text) {
+    if (text == nullptr || text[0] != '#') {
+        return -1;
+    }
+    char* end = nullptr;
+    const long icon = std::strtol(text + 1, &end, 10);
+    if (end == text + 1 || *end != '#') {
+        return -1;
+    }
+    text = end + 1;
+    return static_cast<int>(icon);
 }
 
 // Text edit session shared by dragFloat and textField. Returns +1 commit, -1 cancel, 0 continue.
@@ -131,7 +155,7 @@ int runTextEdit(Rectangle bounds) {
         const float width = static_cast<float>(GuiGetTextWidth(g.buffer));
         DrawRectangleRec({bounds.x + padding, bounds.y + 3.0f, std::min(width, bounds.width - 2.0f * padding),
                           bounds.height - 6.0f},
-                         Fade(styleColor(BORDER_COLOR_FOCUSED), 0.35f));
+                         Fade(theme::kAccent, 0.35f));
     }
 
     if (IsKeyPressed(KEY_ESCAPE)) {
@@ -179,6 +203,23 @@ private:
     bool m_wasLocked;
 };
 
+void drawTooltip() {
+    if (!g.tipSeen || GetTime() - g.tipSince < 0.45) {
+        return;
+    }
+    const float w = textWidth(theme::font(), g.tipText.c_str(), theme::kFontSize) + 2.0f * theme::kSpace2;
+    const float h = 26.0f;
+    Rectangle r{g.tipRect.x + (g.tipRect.width - w) / 2.0f, g.tipRect.y + g.tipRect.height + 6.0f, w, h};
+    r.x = std::clamp(r.x, 4.0f, std::max(4.0f, theme::screenWidth() - w - 4.0f));
+    if (r.y + h > theme::screenHeight()) {
+        r.y = g.tipRect.y - h - 6.0f;
+    }
+    fill({r.x - 1.0f, r.y + 1.0f, r.width + 2.0f, r.height + 2.0f}, Fade(BLACK, 0.3f));
+    fill(r, Color{54, 57, 65, 255});
+    drawText(theme::font(), g.tipText.c_str(), {r.x + theme::kSpace2, r.y + (h - theme::kFontSize) / 2.0f},
+             theme::kFontSize, theme::kText);
+}
+
 } // namespace
 
 void pushClip(Rectangle r) {
@@ -223,26 +264,138 @@ bool pressStartedOn(Rectangle r) {
     });
 }
 
-bool button(Rectangle bounds, const char* text) {
-    InteractionGuard guard;
+bool button(Rectangle bounds, const char* text, ButtonKind kind) {
+    const bool disabled = GuiGetState() == STATE_DISABLED;
+    const bool hot = !disabled && hovered(bounds);
     const bool pressedHere = pressStartedOn(bounds);
-    return GuiButton(bounds, text) != 0 && pressedHere && !g.active;
+    const bool down = hot && pressedHere && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+
+    Color base = theme::kField;
+    Color color = theme::kText;
+    switch (kind) {
+    case ButtonKind::Primary:
+        base = down ? theme::kAccentPressed : hot ? theme::kAccentHover : theme::kAccent;
+        color = WHITE;
+        break;
+    case ButtonKind::Ghost:
+        base = down ? theme::kField : hot ? theme::kFieldHover : Color{0, 0, 0, 0};
+        break;
+    case ButtonKind::Normal:
+        base = down ? theme::kField : hot ? theme::kFieldHover : theme::kField;
+        break;
+    }
+    if (disabled) {
+        color = theme::kTextFaint;
+        if (kind == ButtonKind::Primary) {
+            base = theme::kField;
+        }
+    }
+    if (base.a > 0) {
+        fill(bounds, base);
+    }
+
+    // Icon and text, centred together.
+    const int icon = splitIcon(text);
+    const bool hasText = text != nullptr && text[0] != '\0';
+    const float textW = hasText ? textWidth(theme::font(), text, theme::kFontSize) : 0.0f;
+    const float iconW = icon >= 0 ? 16.0f : 0.0f;
+    const float gap = icon >= 0 && hasText ? 6.0f : 0.0f;
+    float x = std::floor(bounds.x + (bounds.width - (iconW + gap + textW)) / 2.0f);
+    if (icon >= 0) {
+        const Color iconColor = kind == ButtonKind::Primary || disabled ? color : hot ? theme::kText : theme::kTextDim;
+        GuiDrawIcon(icon, static_cast<int>(x), static_cast<int>(bounds.y + (bounds.height - 16.0f) / 2.0f), 1, iconColor);
+        x += iconW + gap;
+    }
+    if (hasText) {
+        drawText(theme::font(), text, {x, bounds.y + (bounds.height - theme::kFontSize) / 2.0f}, theme::kFontSize, color);
+    }
+    return hot && pressedHere && IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && !g.active;
 }
 
 bool windowBox(Rectangle bounds, const char* title) {
-    const bool pressedHere = pressStartedOn(bounds);
-    return GuiWindowBox(bounds, title) != 0 && pressedHere;
+    // A card with a soft shadow, a title and a close button.
+    for (int i = 1; i <= 4; ++i) {
+        const float d = static_cast<float>(i) * 3.0f;
+        fill({bounds.x - d, bounds.y - d + 4.0f, bounds.width + 2.0f * d, bounds.height + 2.0f * d}, Fade(BLACK, 0.06f),
+             theme::kPanelRadius + d);
+    }
+    fill(bounds, theme::kPanel, theme::kPanelRadius);
+    outline(bounds, theme::kBorder, theme::kPanelRadius);
+    drawText(theme::bold(), title, {bounds.x + theme::kSpace4, bounds.y + 12.0f}, theme::kFontSize, theme::kText);
+    const Rectangle close{bounds.x + bounds.width - 34.0f, bounds.y + 6.0f, 26.0f, 26.0f};
+    return iconButton(close, ICON_CROSS_SMALL, theme::kText);
 }
 
 bool iconButton(Rectangle bounds, int icon, Color hoverColor) {
     const bool hot = hovered(bounds);
     if (hot) {
-        DrawRectangleRec(bounds, styleColor(BASE_COLOR_FOCUSED));
+        fill(bounds, theme::kFieldHover);
     }
-    const Color color = hot ? hoverColor : styleColor(TEXT_COLOR_NORMAL);
     GuiDrawIcon(icon, static_cast<int>(bounds.x + (bounds.width - 16.0f) / 2.0f),
-                static_cast<int>(bounds.y + (bounds.height - 16.0f) / 2.0f), 1, color);
+                static_cast<int>(bounds.y + (bounds.height - 16.0f) / 2.0f), 1, hot ? hoverColor : theme::kTextDim);
     return hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !g.active;
+}
+
+bool toggle(Rectangle bounds, const char* text, bool* value) {
+    const bool hot = hovered(bounds);
+    const bool pressedHere = pressStartedOn(bounds);
+    const bool changed = hot && pressedHere && IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && !g.active;
+    if (changed) {
+        *value = !*value;
+    }
+    fill(bounds, *value ? Fade(theme::kAccent, hot ? 0.38f : 0.28f) : hot ? theme::kFieldHover : theme::kField);
+    if (*value) {
+        outline(bounds, Fade(theme::kAccent, 0.8f));
+    }
+    const float w = textWidth(theme::font(), text, theme::kFontSize);
+    drawText(theme::font(), text,
+             {bounds.x + (bounds.width - w) / 2.0f, bounds.y + (bounds.height - theme::kFontSize) / 2.0f},
+             theme::kFontSize, *value ? WHITE : theme::kTextDim);
+    return changed;
+}
+
+void tooltip(Rectangle r, const char* text) {
+    if (!hovered(r) || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        return;
+    }
+    if (r.x != g.tipRect.x || r.y != g.tipRect.y || r.width != g.tipRect.width || r.height != g.tipRect.height ||
+        g.tipText != text) {
+        g.tipRect = r;
+        g.tipSince = GetTime();
+    }
+    g.tipText = text;
+    g.tipSeen = true;
+}
+
+void fill(Rectangle r, Color color, float radius) {
+    const float side = std::min(r.width, r.height);
+    if (radius <= 0.0f || side <= 0.0f) {
+        DrawRectangleRec(r, color);
+        return;
+    }
+    DrawRectangleRounded(r, std::min(1.0f, 2.0f * radius / side), 6, color);
+}
+
+void outline(Rectangle r, Color color, float radius, float thickness) {
+    const float side = std::min(r.width, r.height);
+    if (radius <= 0.0f || side <= 0.0f) {
+        DrawRectangleLinesEx(r, thickness, color);
+        return;
+    }
+    DrawRectangleRoundedLinesEx(r, std::min(1.0f, 2.0f * radius / side), 6, thickness, color);
+}
+
+void drawText(Font font, const char* text, Vector2 position, float size, Color color) {
+    DrawTextEx(font, text, {std::floor(position.x), std::floor(position.y)}, size, 0.0f, color);
+}
+
+float textWidth(Font font, const char* text, float size) {
+    return MeasureTextEx(font, text, size, 0.0f).x;
+}
+
+void caption(Rectangle r, const char* text) {
+    drawText(theme::bold(), text, {r.x, r.y + (r.height - theme::kSmallFontSize) / 2.0f}, theme::kSmallFontSize,
+             theme::kTextDim);
 }
 
 Color styleColor(int property) {
@@ -259,6 +412,7 @@ void beginFrame() {
     g.overPopup = g.popupId && CheckCollisionPointRec(GetMousePosition(), g.popupRect);
     g.interactive = true;
     g.cursor = MOUSE_CURSOR_DEFAULT;
+    g.tipSeen = false;
 }
 
 void endFrame() {
@@ -335,7 +489,7 @@ bool dragFloat(Rectangle bounds, float* value, float speed, const char* prefix, 
                 if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) {
                     step *= 10.0f;
                 }
-                const float delta = GetMouseDelta().x * step;
+                const float delta = theme::mouseDelta().x * step;
                 if (delta != 0.0f) {
                     *value += delta;
                     changed = true;
@@ -361,9 +515,18 @@ bool dragFloat(Rectangle bounds, float* value, float speed, const char* prefix, 
 
     const bool pressed = g.active == id;
     drawFieldFrame(bounds, hot, pressed);
-    const char* text = prefix ? TextFormat("%s  %s", prefix, TextFormat(format, *value)) : TextFormat(format, *value);
-    drawTextIn(bounds, text, styleColor(pressed ? TEXT_COLOR_PRESSED : hot ? TEXT_COLOR_FOCUSED : TEXT_COLOR_NORMAL),
-               true);
+    float textX = bounds.x;
+    if (prefix != nullptr) {
+        // Axis letters in the usual colours: X red, Y green.
+        const Color prefixColor = std::strcmp(prefix, "X") == 0   ? theme::kAxisX
+                                  : std::strcmp(prefix, "Y") == 0 ? theme::kAxisY
+                                                                  : theme::kTextDim;
+        drawText(theme::bold(), prefix, {bounds.x + 8.0f, bounds.y + (bounds.height - theme::kFontSize) / 2.0f},
+                 theme::kFontSize, prefixColor);
+        textX = bounds.x + 18.0f;
+    }
+    drawTextIn({textX, bounds.y, bounds.x + bounds.width - textX, bounds.height}, TextFormat(format, *value),
+               pressed || hot ? theme::kText : Color{205, 207, 214, 255}, true);
     return changed;
 }
 
@@ -395,7 +558,7 @@ bool textField(Rectangle bounds, std::string& text) {
     }
 
     drawFieldFrame(bounds, hot, false);
-    drawTextIn(bounds, text.c_str(), styleColor(hot ? TEXT_COLOR_FOCUSED : TEXT_COLOR_NORMAL), false);
+    drawTextIn(bounds, text.c_str(), theme::kText, false);
     return false;
 }
 
@@ -405,16 +568,27 @@ void focusTextField(std::string& text) {
 }
 
 bool checkbox(Rectangle bounds, bool* checked) {
-    InteractionGuard guard;
-    const float size = std::min(bounds.height, 20.0f);
-    const Rectangle box{bounds.x, bounds.y + (bounds.height - size) / 2.0f, size, size};
-    const bool before = *checked;
+    const float size = std::min(bounds.height, 18.0f);
+    const Rectangle box{bounds.x, std::floor(bounds.y + (bounds.height - size) / 2.0f), size, size};
+    const bool hot = hovered(box);
     const bool pressedHere = pressStartedOn(box);
-    GuiCheckBox(box, nullptr, checked);
-    if (*checked != before && !pressedHere) {
-        *checked = before; // released here, but pressed somewhere else
+    const bool changed = hot && pressedHere && IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && !g.active;
+    if (changed) {
+        *checked = !*checked;
     }
-    return *checked != before;
+    if (*checked) {
+        fill(box, hot ? theme::kAccentHover : theme::kAccent);
+        // A tick.
+        const Vector2 a{box.x + size * 0.24f, box.y + size * 0.52f};
+        const Vector2 b{box.x + size * 0.43f, box.y + size * 0.70f};
+        const Vector2 c{box.x + size * 0.77f, box.y + size * 0.32f};
+        DrawLineEx(a, b, 2.0f, WHITE);
+        DrawLineEx(b, c, 2.0f, WHITE);
+    } else {
+        fill(box, hot ? theme::kFieldHover : theme::kField);
+        outline(box, theme::kBorder);
+    }
+    return changed;
 }
 
 float colorField(Rectangle bounds, Color* color) {
@@ -441,18 +615,18 @@ float colorField(Rectangle bounds, Color* color) {
     }
 
     // Swatch: checkerboard behind the color so alpha is visible.
+    pushClip(bounds);
     DrawRectangleRec(bounds, LIGHTGRAY);
     for (float x = bounds.x; x < bounds.x + bounds.width; x += 8.0f) {
         for (float y = bounds.y; y < bounds.y + bounds.height; y += 8.0f) {
             if ((static_cast<int>((x - bounds.x) / 8.0f) + static_cast<int>((y - bounds.y) / 8.0f)) % 2 == 0) {
-                DrawRectangleRec({x, y, std::min(8.0f, bounds.x + bounds.width - x),
-                                  std::min(8.0f, bounds.y + bounds.height - y)},
-                                 GRAY);
+                DrawRectangleRec({x, y, 8.0f, 8.0f}, GRAY);
             }
         }
     }
     DrawRectangleRec(bounds, *color);
-    DrawRectangleLinesEx(bounds, 1.0f, styleColor(hot || open ? BORDER_COLOR_FOCUSED : BORDER_COLOR_NORMAL));
+    popClip();
+    outline(bounds, hot || open ? theme::kAccent : theme::kPanel, theme::kRadius, hot || open ? 1.0f : 2.0f);
     const Color label = (color->r * 299 + color->g * 587 + color->b * 114) / 1000 > 140 || color->a < 100 ? BLACK : WHITE;
     drawTextIn(bounds, TextFormat("#%02X%02X%02X%02X", color->r, color->g, color->b, color->a), label, true);
 
@@ -503,14 +677,19 @@ bool combo(Rectangle bounds, const void* id, const std::vector<std::string>& ite
 
     drawFieldFrame(bounds, hot, g.popupId == id);
     const char* text = (*selected >= 0 && *selected < static_cast<int>(items.size())) ? items[*selected].c_str() : "";
-    const Color color = styleColor(hot ? TEXT_COLOR_FOCUSED : TEXT_COLOR_NORMAL);
-    drawTextIn({bounds.x, bounds.y, bounds.width - 22.0f, bounds.height}, text, color, false);
-    GuiDrawIcon(g.popupId == id ? ICON_ARROW_UP_FILL : ICON_ARROW_DOWN_FILL, static_cast<int>(bounds.x + bounds.width - 20.0f),
-                static_cast<int>(bounds.y + (bounds.height - 16.0f) / 2.0f), 1, color);
+    drawTextIn({bounds.x, bounds.y, bounds.width - 22.0f, bounds.height}, text, theme::kText, false);
+    // A chevron, pointing up while open.
+    const float cx = bounds.x + bounds.width - 13.0f;
+    const float cy = bounds.y + bounds.height / 2.0f;
+    const float dy = g.popupId == id ? -2.5f : 2.5f;
+    const Color chevron = hot ? theme::kText : theme::kTextDim;
+    DrawLineEx({cx - 4.0f, cy - dy}, {cx, cy + dy}, 1.5f, chevron);
+    DrawLineEx({cx, cy + dy}, {cx + 4.0f, cy - dy}, 1.5f, chevron);
     return changed;
 }
 
 void drawPopups() {
+    drawTooltip();
     if (!g.popupId || !g.popupSeen) {
         return;
     }
@@ -518,38 +697,38 @@ void drawPopups() {
     constexpr int kMaxVisible = 12;
 
     const int count = static_cast<int>(g.popupItems.size());
-    const float height = static_cast<float>(std::clamp(count, 1, kMaxVisible)) * kItemHeight + 4.0f;
+    const float height = static_cast<float>(std::clamp(count, 1, kMaxVisible)) * kItemHeight + 8.0f;
     const Rectangle anchor = g.popupAnchor;
-    Rectangle rect{anchor.x, anchor.y + anchor.height + 2.0f, anchor.width, height};
-    if (rect.y + rect.height > static_cast<float>(GetScreenHeight())) {
-        rect.y = anchor.y - 2.0f - height;
+    Rectangle rect{anchor.x, anchor.y + anchor.height + 4.0f, anchor.width, height};
+    if (rect.y + rect.height > theme::screenHeight()) {
+        rect.y = anchor.y - 4.0f - height;
     }
     g.popupRect = rect;
 
     const Vector2 mouse = GetMousePosition();
     const bool over = CheckCollisionPointRec(mouse, rect);
-    const float maxScroll = std::max(0.0f, static_cast<float>(count) * kItemHeight + 4.0f - height);
+    const float maxScroll = std::max(0.0f, static_cast<float>(count) * kItemHeight + 8.0f - height);
     if (over) {
         g.popupScroll = std::clamp(g.popupScroll - GetMouseWheelMove() * kItemHeight * 2.0f, 0.0f, maxScroll);
     }
 
-    DrawRectangleRec(rect, styleColor(BACKGROUND_COLOR));
-    DrawRectangleLinesEx(rect, 1.0f, styleColor(BORDER_COLOR_FOCUSED));
-    pushClip({rect.x + 1.0f, rect.y + 1.0f, rect.width - 2.0f, rect.height - 2.0f});
+    fill({rect.x - 2.0f, rect.y, rect.width + 4.0f, rect.height + 4.0f}, Fade(BLACK, 0.25f), theme::kRadius + 2.0f);
+    fill(rect, theme::kRaised, theme::kPanelRadius);
+    outline(rect, theme::kBorder, theme::kPanelRadius);
+    pushClip({rect.x + 1.0f, rect.y + 4.0f, rect.width - 2.0f, rect.height - 8.0f});
     for (int i = 0; i < count; ++i) {
-        const Rectangle item{rect.x + 2.0f, rect.y + 2.0f + static_cast<float>(i) * kItemHeight - g.popupScroll,
-                             rect.width - 4.0f, kItemHeight};
+        const Rectangle item{rect.x + 4.0f, rect.y + 4.0f + static_cast<float>(i) * kItemHeight - g.popupScroll,
+                             rect.width - 8.0f, kItemHeight};
         if (item.y + item.height < rect.y || item.y > rect.y + rect.height) {
             continue;
         }
         const bool hot = over && !GuiIsLocked() && CheckCollisionPointRec(mouse, item);
         if (hot) {
-            DrawRectangleRec(item, styleColor(BASE_COLOR_PRESSED));
+            fill(item, theme::kAccent);
         } else if (i == g.popupSelected) {
-            DrawRectangleRec(item, styleColor(BASE_COLOR_FOCUSED));
+            fill(item, theme::kFieldHover);
         }
-        drawTextIn(item, g.popupItems[static_cast<std::size_t>(i)].c_str(),
-                   styleColor(hot ? TEXT_COLOR_PRESSED : TEXT_COLOR_NORMAL), false);
+        drawTextIn(item, g.popupItems[static_cast<std::size_t>(i)].c_str(), hot ? WHITE : theme::kText, false);
         if (hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             g.pickedId = g.popupId;
             g.pickedIndex = i;
@@ -572,7 +751,7 @@ Rectangle PropertyGrid::row(const char* label, float height) {
     const float rowHeight = std::max(height, kFieldHeight) + (kRowHeight - kFieldHeight);
 
     const Rectangle labelRect{m_x + kPadding, m_y, labelWidth, rowHeight};
-    drawTextIn(labelRect, label, styleColor(TEXT_COLOR_NORMAL), false);
+    drawTextIn(labelRect, label, theme::kTextDim, false);
 
     const float valueX = m_x + kPadding + labelWidth;
     const Rectangle value{valueX, m_y + (rowHeight - height) / 2.0f, std::max(20.0f, m_x + m_width - kPadding - valueX),

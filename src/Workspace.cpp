@@ -5,6 +5,7 @@
 #include "ProjectExport.h"
 #include "SceneExporter.h"
 #include "SceneSerializer.h"
+#include "Theme.h"
 #include "Widgets.h"
 
 #include <raygui.h>
@@ -18,8 +19,8 @@ namespace {
 constexpr const char* kExtension = kSceneExtension;
 constexpr float kButtonHeight = 28.0f;
 constexpr float kListRowHeight = 28.0f;
-constexpr Color kWarningColor{230, 200, 80, 255};
-constexpr Color kCloseColor{235, 100, 100, 255};
+constexpr Color kWarningColor = theme::kWarning;
+constexpr Color kCloseColor = theme::kError;
 
 bool ctrlDown() {
     return IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
@@ -31,9 +32,9 @@ bool shiftDown() {
 
 // Dims the editor and returns a centered dialog rectangle.
 Rectangle beginModal(float width, float height) {
-    const float sw = static_cast<float>(GetScreenWidth());
-    const float sh = static_cast<float>(GetScreenHeight());
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.55f));
+    const float sw = theme::screenWidth();
+    const float sh = theme::screenHeight();
+    DrawRectangleRec({0.0f, 0.0f, sw, sh}, Fade(BLACK, 0.55f));
     return {std::floor((sw - width) / 2.0f), std::floor((sh - height) / 2.0f), width, height};
 }
 
@@ -136,79 +137,65 @@ void Workspace::handleShortcuts() {
 
 void Workspace::drawToolbar(Rectangle bar) {
     Document& doc = active();
-    DrawRectangleRec(bar, ui::styleColor(BASE_COLOR_NORMAL));
+    DrawRectangleRec(bar, theme::kPanel);
+    DrawLineV({bar.x, bar.y + bar.height - 0.5f}, {bar.x + bar.width, bar.y + bar.height - 0.5f}, theme::kBorder);
 
-    // Two groups, each in its own frame with a small caption:
-    //   [Scene: New  Open  Save  Save As | Undo  Redo]   [Project: <name>  Play | Settings  Export  Close Project]
-    constexpr float kButtonH = 26.0f;
-    constexpr float kGap = 4.0f;
-    constexpr float kGroupPadding = 6.0f;
-    constexpr float kSeparatorGap = 10.0f;
-    const float y = bar.y + (bar.height - kButtonH) / 2.0f;
-    const Font font = GuiGetFont();
-    const float fontSize = static_cast<float>(GuiGetStyle(DEFAULT, TEXT_SIZE));
-    const float spacing = static_cast<float>(GuiGetStyle(DEFAULT, TEXT_SPACING));
-    const auto textWidth = [&](const char* text) { return MeasureTextEx(font, text, fontSize, spacing).x; };
+    //   [project name | new open save save-as | undo redo]      [ Play ]      [Settings  Export  Close]
+    constexpr float kButton = 30.0f;
+    constexpr float kGap = 2.0f;
+    const float y = bar.y + (bar.height - kButton) / 2.0f;
+    const float cy = bar.y + bar.height / 2.0f;
+    const auto separator = [&](float x) {
+        DrawLineV({x, bar.y + 12.0f}, {x, bar.y + bar.height - 12.0f}, theme::kBorder);
+    };
 
-    struct Item {
+    // The project, on the left.
+    float x = bar.x + theme::kSpace3;
+    GuiDrawIcon(ICON_FOLDER_OPEN, static_cast<int>(x), static_cast<int>(cy - 8.0f), 1, theme::kAccentHover);
+    x += 24.0f;
+    const float nameWidth = std::min(ui::textWidth(theme::bold(), m_project.name.c_str(), theme::kFontSize), 220.0f);
+    ui::pushClip({x, bar.y, nameWidth, bar.height});
+    ui::drawText(theme::bold(), m_project.name.c_str(), {x, cy - theme::kFontSize / 2.0f}, theme::kFontSize, theme::kText);
+    ui::popClip();
+    x += nameWidth + theme::kSpace3;
+    separator(x);
+    x += theme::kSpace3;
+
+    // Scene actions: icon buttons, explained by their tooltips.
+    struct Tool {
         int icon;
-        const char* label;
-        float width;
-        bool enabled = true;
-        bool separatorBefore = false; // thin divider between sub-groups
+        const char* tip;
+        bool enabled;
+        bool separatorBefore;
     };
-    const auto groupWidth = [&](const char* caption, const std::vector<Item>& items, float extra) {
-        float w = kGroupPadding + textWidth(caption) + 10.0f + extra;
-        for (const Item& item : items) {
-            w += item.width + kGap + (item.separatorBefore ? kSeparatorGap : 0.0f);
+    const Tool tools[] = {
+        {ICON_FILE_NEW, "New scene  (Ctrl+N)", true, false},
+        {ICON_FOLDER_FILE_OPEN, "Open scene  (Ctrl+O)", true, false},
+        {ICON_FILE_SAVE_CLASSIC, "Save  (Ctrl+S)", true, false},
+        {ICON_FILE_SAVE, "Save as  (Ctrl+Shift+S)", true, false},
+        {ICON_UNDO, "Undo  (Ctrl+Z)", doc.history.canUndo(), true},
+        {ICON_REDO, "Redo  (Ctrl+Y)", doc.history.canRedo(), false},
+    };
+    int clicked = -1;
+    for (int i = 0; i < static_cast<int>(std::size(tools)); ++i) {
+        const Tool& tool = tools[i];
+        if (tool.separatorBefore) {
+            x += theme::kSpace1;
+            separator(x);
+            x += theme::kSpace2;
         }
-        return w - kGap + kGroupPadding;
-    };
-    // Draws the frame and caption; returns where the group's content starts.
-    const auto beginGroup = [&](float x, float width, const char* caption) {
-        const Rectangle frame{x, bar.y + 3.0f, width, bar.height - 6.0f};
-        DrawRectangleRec(frame, ui::styleColor(BACKGROUND_COLOR));
-        DrawRectangleLinesEx(frame, 1.0f, ui::styleColor(LINE_COLOR));
-        // ui::label indents its text 6 px: start the box that much earlier so the caption
-        // stays at kGroupPadding and isn't clipped on the right.
-        ui::label({x + kGroupPadding - 6.0f, bar.y, textWidth(caption) + 10.0f, bar.height}, caption,
-                  ui::styleColor(TEXT_COLOR_DISABLED));
-        return x + kGroupPadding + textWidth(caption) + 10.0f;
-    };
-    // Draws the buttons; returns the index of the one clicked, or -1.
-    const auto drawItems = [&](float x, const std::vector<Item>& items) {
-        int clicked = -1;
-        for (std::size_t i = 0; i < items.size(); ++i) {
-            const Item& item = items[i];
-            if (item.separatorBefore) {
-                const float sx = x + kSeparatorGap / 2.0f - kGap / 2.0f;
-                DrawLineV({sx, bar.y + 8.0f}, {sx, bar.y + bar.height - 8.0f}, ui::styleColor(LINE_COLOR));
-                x += kSeparatorGap;
-            }
-            const Rectangle r{x, y, item.width, kButtonH};
-            if (!item.enabled) {
-                GuiDisable();
-            }
-            if (ui::button(r, GuiIconText(item.icon, item.label)) && item.enabled) {
-                clicked = static_cast<int>(i);
-            }
-            GuiEnable();
-            x += item.width + kGap;
+        const Rectangle r{x, y, kButton, kButton};
+        if (!tool.enabled) {
+            GuiDisable();
         }
-        return clicked;
-    };
-
-    // --- Scene group (acts on the scene tabs) ---
-    const std::vector<Item> sceneItems{
-        {ICON_FILE_NEW, "New", 84.0f},
-        {ICON_FOLDER_FILE_OPEN, "Open", 92.0f},
-        {ICON_FILE_SAVE_CLASSIC, "Save", 92.0f},
-        {ICON_FILE_SAVE_CLASSIC, "Save As", 124.0f},
-        {ICON_UNDO, "Undo", 92.0f, doc.history.canUndo(), true},
-        {ICON_REDO, "Redo", 92.0f, doc.history.canRedo()},
-    };
-    const float sceneX = bar.x + 6.0f;
-    switch (drawItems(beginGroup(sceneX, groupWidth("Scene", sceneItems, 0.0f), "Scene"), sceneItems)) {
+        if (ui::button(r, GuiIconText(tool.icon, nullptr), ui::ButtonKind::Ghost)) {
+            clicked = i;
+        }
+        GuiEnable();
+        ui::tooltip(r, tool.tip);
+        x += kButton + kGap;
+    }
+    switch (clicked) {
     case 0: requestNew(); break;
     case 1: requestOpen(); break;
     case 2: requestSave(doc); break;
@@ -217,44 +204,62 @@ void Workspace::drawToolbar(Rectangle bar) {
     case 5: doc.history.redo(doc.scene, doc.selected); break;
     default: break;
     }
+    const float leftEnd = x;
 
-    // --- Project group (right-aligned) ---
-    const bool gameActive = m_runner.state() != GameRunner::State::Idle;
-    const char* playLabel = m_runner.state() == GameRunner::State::Building ? "Building" : (gameActive ? "Stop" : "Play");
-    const std::vector<Item> projectItems{
-        {gameActive ? ICON_PLAYER_STOP : ICON_PLAYER_PLAY, playLabel, 112.0f},
-        {ICON_GEAR, "Settings", 116.0f, true, true},
-        {ICON_FILE_EXPORT, "Export", 104.0f},
-        {ICON_EXIT, "Close Project", 160.0f},
+    // Project actions, on the right.
+    struct Action {
+        int icon;
+        const char* label;
+        const char* tip;
     };
-    const float nameWidth = std::min(textWidth(m_project.name.c_str()), 260.0f) + 24.0f + 10.0f; // icon + name
-    const float projectWidth = groupWidth("Project", projectItems, nameWidth);
-    const float projectX = bar.x + bar.width - 6.0f - projectWidth;
-    float px = beginGroup(projectX, projectWidth, "Project");
-    GuiDrawIcon(ICON_FOLDER_OPEN, static_cast<int>(px), static_cast<int>(bar.y + (bar.height - 16.0f) / 2.0f), 1,
-                ui::styleColor(TEXT_COLOR_NORMAL));
-    ui::label({px + 22.0f, bar.y, nameWidth - 24.0f, bar.height}, m_project.name.c_str(),
-              ui::styleColor(TEXT_COLOR_FOCUSED));
-    px += nameWidth;
-    switch (drawItems(px, projectItems)) {
-    case 0:
+    const Action actions[] = {
+        {ICON_GEAR, "Settings", "Project settings"},
+        {ICON_FILE_EXPORT, "Export", "Export the C code  (Ctrl+E)"},
+        {ICON_EXIT, "Close", "Close the project"},
+    };
+    float rightWidth = 0.0f;
+    std::vector<float> widths;
+    for (const Action& action : actions) {
+        widths.push_back(ui::textWidth(theme::font(), action.label, theme::kFontSize) + 16.0f + 6.0f + 2.0f * theme::kSpace3);
+        rightWidth += widths.back() + kGap;
+    }
+    float rx = bar.x + bar.width - theme::kSpace2 - rightWidth;
+    int action = -1;
+    for (std::size_t i = 0; i < std::size(actions); ++i) {
+        const Rectangle r{rx, y, widths[i], kButton};
+        if (ui::button(r, GuiIconText(actions[i].icon, actions[i].label), ui::ButtonKind::Ghost)) {
+            action = static_cast<int>(i);
+        }
+        ui::tooltip(r, actions[i].tip);
+        rx += widths[i] + kGap;
+    }
+    switch (action) {
+    case 0: openProjectSettings(); break;
+    case 1: exportProject(); break;
+    case 2: requestExit(Exit::CloseProject); break;
+    default: break;
+    }
+
+    // Play, the one accent-coloured button, in the middle (or just right of the scene actions).
+    const bool gameActive = m_runner.state() != GameRunner::State::Idle;
+    const bool building = m_runner.state() == GameRunner::State::Building;
+    const char* playLabel = building ? "Building" : gameActive ? "Stop" : "Play";
+    constexpr float kPlayWidth = 112.0f;
+    const float playX = std::max(std::floor(bar.x + (bar.width - kPlayWidth) / 2.0f), leftEnd + theme::kSpace4);
+    const Rectangle play{playX, y, kPlayWidth, kButton};
+    if (ui::button(play, GuiIconText(gameActive ? ICON_PLAYER_STOP : ICON_PLAYER_PLAY, playLabel),
+                   gameActive ? ui::ButtonKind::Normal : ui::ButtonKind::Primary)) {
         if (gameActive) {
             m_runner.stop();
         } else {
-            play();
+            this->play();
         }
-        break;
-    case 1: openProjectSettings(); break;
-    case 2: exportProject(); break;
-    case 3: requestExit(Exit::CloseProject); break;
-    default: break;
     }
+    ui::tooltip(play, gameActive ? "Stop the game  (Shift+F5)" : "Export, build and run the game  (F5)");
 }
 
 void Workspace::drawTabs(Rectangle bar) {
-    DrawRectangleRec(bar, Color{24, 24, 28, 255});
-    DrawLineV({bar.x, bar.y + bar.height - 1.0f}, {bar.x + bar.width, bar.y + bar.height - 1.0f},
-              ui::styleColor(BORDER_COLOR_NORMAL));
+    DrawRectangleRec(bar, theme::kBackground);
 
     const Font font = GuiGetFont();
     const float fontSize = static_cast<float>(GuiGetStyle(DEFAULT, TEXT_SIZE));
@@ -268,8 +273,8 @@ void Workspace::drawTabs(Rectangle bar) {
     std::vector<float> widths;
     float total = 0.0f;
     for (const auto& doc : m_docs) {
-        titles.push_back(doc->displayName() + (doc->dirty ? " *" : ""));
-        const float w = std::clamp(MeasureTextEx(font, titles.back().c_str(), fontSize, spacing).x + 48.0f, 110.0f, 260.0f);
+        titles.push_back(doc->displayName());
+        const float w = std::clamp(MeasureTextEx(font, titles.back().c_str(), fontSize, spacing).x + 52.0f, 100.0f, 260.0f);
         widths.push_back(w);
         total += w + kGap;
     }
@@ -327,34 +332,38 @@ void Workspace::drawTabs(Rectangle bar) {
     for (std::size_t i = 0; i < m_docs.size(); ++i) {
         Document* doc = m_docs[i].get();
         const bool isActive = i == m_active;
-        const Rectangle tab{xs[i], bar.y + 4.0f, widths[i], bar.height - 4.0f};
+        const Rectangle tab{xs[i], bar.y + 4.0f, widths[i], bar.height - 8.0f};
 
         if (m_tabDragging && doc == m_dragTab) {
             // Leave an empty slot; the tab itself is drawn under the mouse below.
-            DrawRectangleLinesEx(tab, 1.0f, ui::styleColor(BORDER_COLOR_NORMAL));
+            ui::outline(tab, theme::kBorder);
             draggedTab = tab;
             draggedIndex = i;
             continue;
         }
 
         const bool hot = !m_tabDragging && ui::hovered(tab);
-        DrawRectangleRec(tab, isActive ? ui::styleColor(BACKGROUND_COLOR)
-                              : hot    ? ui::styleColor(BASE_COLOR_FOCUSED)
-                                       : Color{32, 32, 37, 255});
+        if (isActive || hot) {
+            ui::fill(tab, isActive ? theme::kPanel : Color{255, 255, 255, 8});
+        }
         if (isActive) {
-            DrawRectangleRec({tab.x, tab.y, tab.width, 2.0f}, ui::styleColor(BORDER_COLOR_FOCUSED));
+            ui::fill({tab.x + 8.0f, tab.y + tab.height - 2.0f, tab.width - 16.0f, 2.0f}, theme::kAccent, 1.0f);
         }
 
-        const Rectangle closeButton{tab.x + tab.width - 24.0f, tab.y + (tab.height - 20.0f) / 2.0f, 20.0f, 20.0f};
-        ui::label({tab.x + 10.0f, tab.y, tab.width - 38.0f, tab.height}, titles[i].c_str(),
-                  ui::styleColor(isActive ? TEXT_COLOR_FOCUSED : TEXT_COLOR_NORMAL));
+        const Rectangle closeButton{tab.x + tab.width - 26.0f, tab.y + (tab.height - 20.0f) / 2.0f, 20.0f, 20.0f};
+        ui::label({tab.x + 8.0f, tab.y, tab.width - 38.0f, tab.height}, titles[i].c_str(),
+                  isActive ? theme::kText : hot ? theme::kText : theme::kTextDim);
         if (m_tabDragging) {
             continue; // no clicks or closing while another tab is being dragged
         }
 
+        // Unsaved changes: a dot where the close button goes, until the tab is hovered.
         bool closing = false;
-        if (isActive || hot) {
+        if (hot || (isActive && !doc->dirty)) {
             closing = ui::iconButton(closeButton, ICON_CROSS_SMALL, kCloseColor);
+        } else if (doc->dirty) {
+            DrawCircleV({closeButton.x + closeButton.width / 2.0f, closeButton.y + closeButton.height / 2.0f}, 4.0f,
+                        isActive ? theme::kText : theme::kTextDim);
         }
         if (hot && IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
             closing = true;
@@ -374,20 +383,28 @@ void Workspace::drawTabs(Rectangle bar) {
 
     // "+" opens a new tab.
     const float plusX = xs.empty() ? bar.x + 4.0f : xs.back() + widths.back() + kGap;
-    const Rectangle plus{plusX + 4.0f, bar.y + 5.0f, kPlusWidth - 4.0f, bar.height - 8.0f};
-    if (ui::button(plus, "+")) {
+    const Rectangle plus{plusX + 4.0f, bar.y + 6.0f, bar.height - 12.0f, bar.height - 12.0f};
+    if (ui::button(plus, "", ui::ButtonKind::Ghost)) {
         requestNew();
     }
+    {
+        const Color color = ui::hovered(plus) ? theme::kText : theme::kTextDim;
+        const float cx = std::floor(plus.x + plus.width / 2.0f);
+        const float cy = std::floor(plus.y + plus.height / 2.0f);
+        DrawRectangleRec({cx - 6.0f, cy - 1.0f, 12.0f, 2.0f}, color);
+        DrawRectangleRec({cx - 1.0f, cy - 6.0f, 2.0f, 12.0f}, color);
+    }
+    ui::tooltip(plus, "New scene  (Ctrl+N)");
 
     // The dragged tab follows the mouse, on top of the others.
     if (draggedIndex < m_docs.size()) {
         Rectangle floating = draggedTab;
         floating.x = std::clamp(mouse.x - m_tabGrabOffset, bar.x, bar.x + bar.width - floating.width);
-        DrawRectangleRec(floating, ui::styleColor(BACKGROUND_COLOR));
-        DrawRectangleRec({floating.x, floating.y, floating.width, 2.0f}, ui::styleColor(BORDER_COLOR_FOCUSED));
-        DrawRectangleLinesEx(floating, 1.0f, ui::styleColor(BORDER_COLOR_FOCUSED));
-        ui::label({floating.x + 10.0f, floating.y, floating.width - 38.0f, floating.height},
-                  titles[draggedIndex].c_str(), ui::styleColor(TEXT_COLOR_FOCUSED));
+        ui::fill({floating.x - 1.0f, floating.y + 1.0f, floating.width + 2.0f, floating.height + 2.0f}, Fade(BLACK, 0.3f));
+        ui::fill(floating, theme::kRaised);
+        ui::fill({floating.x + 8.0f, floating.y + floating.height - 2.0f, floating.width - 16.0f, 2.0f}, theme::kAccent, 1.0f);
+        ui::label({floating.x + 8.0f, floating.y, floating.width - 38.0f, floating.height}, titles[draggedIndex].c_str(),
+                  theme::kText);
     }
 }
 
@@ -577,7 +594,7 @@ void Workspace::drawOpenDialog() {
     ui::popClip();
 
     const float by = box.y + box.height - 12.0f - kButtonHeight;
-    if (ui::button({box.x + box.width - 12.0f - 110.0f, by, 110.0f, kButtonHeight}, "Open") ||
+    if (ui::button({box.x + box.width - 12.0f - 110.0f, by, 110.0f, kButtonHeight}, "Open", ui::ButtonKind::Primary) ||
         (IsKeyPressed(KEY_ENTER) && m_fileSelected >= 0)) {
         open = m_fileSelected >= 0;
     }
@@ -622,10 +639,10 @@ void Workspace::drawSaveAsDialog() {
     bool save = false;
     if (name.empty()) {
         GuiDisable();
-        ui::button(saveButton, "Save");
+        ui::button(saveButton, "Save", ui::ButtonKind::Primary);
         GuiEnable();
     } else {
-        save = ui::button(saveButton, exists ? "Overwrite" : "Save") ||
+        save = ui::button(saveButton, exists ? "Overwrite" : "Save", ui::ButtonKind::Primary) ||
                (IsKeyPressed(KEY_ENTER) && !ui::isTextEditing());
     }
     if (ui::button({box.x + box.width - 12.0f - 250.0f, by, 110.0f, kButtonHeight}, "Cancel") ||
@@ -665,7 +682,7 @@ void Workspace::drawConfirmCloseDialog() {
               ui::styleColor(TEXT_COLOR_NORMAL));
 
     const float by = box.y + box.height - 12.0f - kButtonHeight;
-    const bool save = ui::button({box.x + box.width - 12.0f - 110.0f, by, 110.0f, kButtonHeight}, "Save");
+    const bool save = ui::button({box.x + box.width - 12.0f - 110.0f, by, 110.0f, kButtonHeight}, "Save", ui::ButtonKind::Primary);
     const bool discard = ui::button({box.x + box.width - 12.0f - 260.0f, by, 140.0f, kButtonHeight}, "Don't Save");
     if (ui::button({box.x + box.width - 12.0f - 370.0f, by, 100.0f, kButtonHeight}, "Cancel") ||
         IsKeyPressed(KEY_ESCAPE)) {
@@ -828,7 +845,7 @@ void Workspace::drawProjectSettingsDialog() {
     }
 
     const float by = box.y + box.height - 12.0f - kButtonHeight;
-    const bool save = ui::button({box.x + box.width - 12.0f - 120.0f, by, 120.0f, kButtonHeight}, "Save");
+    const bool save = ui::button({box.x + box.width - 12.0f - 120.0f, by, 120.0f, kButtonHeight}, "Save", ui::ButtonKind::Primary);
     if (ui::button({box.x + box.width - 12.0f - 240.0f, by, 110.0f, kButtonHeight}, "Cancel") ||
         (IsKeyPressed(KEY_ESCAPE) && !ui::isTextEditing())) {
         close = true;
@@ -994,7 +1011,8 @@ void Workspace::drawQuitDialog() {
         std::any_of(m_quitItems.begin(), m_quitItems.end(), [](const QuitItem& i) { return i.save; });
     const bool saveAndQuit = ui::button({box.x + box.width - 12.0f - 150.0f, by, 150.0f, kButtonHeight},
                                         m_exitKind == Exit::Quit ? (anyChecked ? "Save & Quit" : "Quit")
-                                                                 : (anyChecked ? "Save & Close" : "Close")) ||
+                                                                 : (anyChecked ? "Save & Close" : "Close"),
+                                        ui::ButtonKind::Primary) ||
                              IsKeyPressed(KEY_ENTER);
     const bool discard =
         ui::button({box.x + box.width - 12.0f - 300.0f, by, 140.0f, kButtonHeight}, "Don't Save");

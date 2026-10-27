@@ -43,11 +43,18 @@ void focusTextField(std::string& text);
 
 bool checkbox(Rectangle bounds, bool* checked);
 
-// raygui buttons fire when the mouse is released over them, even if the press started
-// elsewhere, e.g. on a tab's close button after which the "+" button slid under the
-// cursor. These wrappers only count clicks whose press started on the same control at
-// the same place.
-bool button(Rectangle bounds, const char* text);
+// A pill that toggles `value` when clicked, tinted with the accent while on.
+bool toggle(Rectangle bounds, const char* text, bool* value);
+
+// Normal: a filled button. Ghost: no fill until hovered (toolbars). Primary: the accent
+// colour, for the one main action (Play, Save in a dialog).
+enum class ButtonKind { Normal, Ghost, Primary };
+
+// Fires when the mouse is released over the button and the press started on it at the
+// same place (not when a press elsewhere is released over it, e.g. after a tab closed and
+// another control slid under the cursor). `text` may start with an icon from
+// GuiIconText. Disabled (and never fires) between GuiDisable() and GuiEnable().
+bool button(Rectangle bounds, const char* text, ButtonKind kind = ButtonKind::Normal);
 
 // raygui window box; returns true when its close button is clicked.
 bool windowBox(Rectangle bounds, const char* title);
@@ -58,6 +65,17 @@ bool pressStartedOn(Rectangle r);
 
 // Flat icon button; `hoverColor` tints the icon while hovered.
 bool iconButton(Rectangle bounds, int icon, Color hoverColor);
+
+// Shows `text` under `r` once the mouse has rested on it for a moment (drawn by drawPopups).
+void tooltip(Rectangle r, const char* text);
+
+// Drawing helpers in the editor's style.
+void fill(Rectangle r, Color color, float radius = 4.0f);
+void outline(Rectangle r, Color color, float radius = 4.0f, float thickness = 1.0f);
+void drawText(Font font, const char* text, Vector2 position, float size, Color color);
+float textWidth(Font font, const char* text, float size);
+// A small, dim heading (panel and group captions), vertically centred in `r`.
+void caption(Rectangle r, const char* text);
 
 // Mouse is over `r` and widgets are interactive.
 bool hovered(Rectangle r);
@@ -71,7 +89,7 @@ void label(Rectangle r, const char* text, Color color, bool center = false);
 // `id` must be stable across frames. Returns true when the user picked a different item.
 bool combo(Rectangle bounds, const void* id, const std::vector<std::string>& items, int* selected);
 
-// Draws open popups; call after all panels, before endFrame().
+// Draws open popups and the tooltip; call after all panels, before endFrame().
 void drawPopups();
 
 // Mouse is over an open popup, so widgets underneath should ignore it.
