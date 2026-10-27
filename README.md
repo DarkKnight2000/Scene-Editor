@@ -21,6 +21,8 @@ game reads where things are and draws its own things there, scaled to any window
   Fit or Fill.
 - **Physics (optional):** rigidbodies and colliders become [Box2D](https://box2d.org/)
   bodies.
+- **Platformer controller:** a component that makes a body a playable character: run,
+  jump, coyote time, jump buffering and variable jump height, tuned in the editor.
 - **Play:** export, build and run the game from the editor (F5).
 
 ![The HUD scene previewed on a 4:3 screen, with the Minimap element pinned to the top-right corner](docs/images/editor-ui.png)

@@ -596,7 +596,7 @@
           ],
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.0,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -606,6 +606,16 @@
           "angularDamping": 0.0,
           "fixedRotation": true,
           "isBullet": false
+        },
+        "platformer": {
+          "moveSpeed": 300.0,
+          "acceleration": 2400.0,
+          "airControl": 0.6,
+          "jumpHeight": 120.0,
+          "coyoteTime": 0.1,
+          "jumpBuffer": 0.12,
+          "jumpCut": 0.5,
+          "maxFallSpeed": 900.0
         }
       }
     }

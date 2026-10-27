@@ -81,6 +81,53 @@ static void teleport(SceneEntity *e, Vector2 to) {
 Changing an entity's transform doesn't move its body: the next step writes the body's place
 back into the transform.
 
+## Platformer controller
+
+Add a **Platformer Controller** to an entity with a dynamic Rigidbody (with **Fixed Rot.**
+on) and a Box Collider, and the exported game moves it like a platformer character: left /
+right with **A / D** or the arrow keys, jump with **Space**, **W** or **Up**.
+
+| Setting | Default | What it does |
+|---|---|---|
+| Move Speed | 300 /s | top running speed, in scene units |
+| Acceleration | 2400 /s² | how quickly it gets to that speed (and stops) on the ground |
+| Air Control | 0.6 | the share of that acceleration it has in the air |
+| Jump Height | 120 | how high a full jump goes, in scene units |
+| Coyote Time | 0.1 s | a jump still works this long after running off a ledge |
+| Jump Buffer | 0.12 s | a jump pressed this long before landing happens on landing |
+| Jump Cut | 0.5 | upward speed kept when jump is released early: tap for a small hop |
+| Max Fall | 900 /s | fastest falling speed |
+
+- **Jump height:** the jump speed is worked out from the gravity (Project Settings and the
+  Rigidbody's Gravity), so a full jump reaches Jump Height whatever the gravity is.
+- **Walls:** set the character's collider friction to 0, or it sticks to walls it runs into.
+- **In the exported code:** the settings and the state are in `entity.platformer`, a
+  `ScenePlatformer`. The scene's `_step` calls `scene_platformer_update(&entity, dt)` before
+  stepping the physics.
+
+**Reading its state**, e.g. to pick an animation:
+
+```c
+const ScenePlatformer *p = &level.player.platformer;
+const char *animation = !p->grounded ? (p->rising ? "jump" : "fall") : p->move != 0.0f ? "run" : "idle";
+```
+
+**Other input** (a gamepad, touch, a replay): set `manual_input`, then fill in the input
+before each step. `jump_pressed` is cleared by the step, so set it on the frame the button
+goes down:
+
+```c
+ScenePlatformer *p = &level.player.platformer;
+p->manual_input = true;
+p->move = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X);
+p->jump_pressed = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+p->jump_held = IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+scene_manager_update(&scenes, GetFrameTime());
+```
+
+**Tuning while playing:** the settings are plain fields, so you can change them at runtime,
+e.g. `level.player.platformer.jump_height = 200.0f;` for a power-up.
+
 ## Triggers and contacts
 
 Read Box2D's events after a step. Shapes carry their `SceneEntity *`, so compare with your

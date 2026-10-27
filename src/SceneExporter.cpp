@@ -284,6 +284,12 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     for (const entt::entity e : ui) {
         anyLabel = anyLabel || registry.all_of<UILabelComponent>(e);
     }
+    // A platformer controller moves a dynamic body; without one there's nothing to move.
+    const auto hasPlatformer = [&](entt::entity e) {
+        const auto* rb = registry.try_get<RigidbodyComponent>(e);
+        return physics && registry.all_of<PlatformerControllerComponent>(e) && rb != nullptr &&
+               rb->type == BodyType::Dynamic;
+    };
 
     info = ExportedScene{};
     info.name = sceneName;
@@ -390,6 +396,13 @@ typedef struct {{type}} {
             }
             c << ", .density = " << floatLiteral(col->density) << ", .friction = " << floatLiteral(col->friction)
               << ", .restitution = " << floatLiteral(col->restitution) << "}";
+        }
+        if (const auto* pc = registry.try_get<PlatformerControllerComponent>(e); pc != nullptr && hasPlatformer(e)) {
+            c << ", .platformer = {.move_speed = " << floatLiteral(pc->moveSpeed)
+              << ", .acceleration = " << floatLiteral(pc->acceleration) << ", .air_control = " << floatLiteral(pc->airControl)
+              << ", .jump_height = " << floatLiteral(pc->jumpHeight) << ", .coyote_time = " << floatLiteral(pc->coyoteTime)
+              << ", .jump_buffer = " << floatLiteral(pc->jumpBuffer) << ", .jump_cut = " << floatLiteral(pc->jumpCut)
+              << ", .max_fall_speed = " << floatLiteral(pc->maxFallSpeed) << "}";
         }
         c << ", .visible = true},\n";
     }
@@ -528,8 +541,13 @@ typedef struct {{type}} {
 
     if (info.hasBodies) {
         // Fixed steps, then moving bodies back into their entities, parents first.
-        c << "\nvoid " << prefix << "_step(" << type << " *s, float dt) {\n"
-          << "    scene_physics_advance(s->physics_world, &s->physics_time, dt);\n";
+        c << "\nvoid " << prefix << "_step(" << type << " *s, float dt) {\n";
+        for (const entt::entity e : drawn) {
+            if (hasPlatformer(e)) {
+                c << "    scene_platformer_update(&" << ref(e) << ", dt);\n";
+            }
+        }
+        c << "    scene_physics_advance(s->physics_world, &s->physics_time, dt);\n";
         for (const entt::entity e : tree) {
             const auto* rb = registry.try_get<RigidbodyComponent>(e);
             if (rb == nullptr || rb->type == BodyType::Static) {
@@ -891,6 +909,38 @@ typedef struct SceneBoxCollider {
     float restitution;
 } SceneBoxCollider;
 
+#if SCENE_PHYSICS
+/* A player-controlled platformer character (a dynamic body with a box collider): moves
+   left / right and jumps. Speeds and heights in scene units.
+     coyote time  a jump still works for a moment after leaving a ledge
+     jump buffer  a jump pressed just before landing happens on landing
+     jump cut     releasing jump early ends the jump lower */
+typedef struct ScenePlatformer {
+    float move_speed;     /* per second */
+    float acceleration;   /* per second squared, on the ground */
+    float air_control;    /* share of the acceleration in the air (0..1) */
+    float jump_height;
+    float coyote_time;    /* seconds */
+    float jump_buffer;    /* seconds */
+    float jump_cut;       /* upward speed kept when jump is released early (0..1) */
+    float max_fall_speed; /* per second */
+
+    /* Input. Read from the keyboard on each step (A / D or Left / Right; Space, W or Up)
+       unless manual_input is set: then set these yourself before the step, e.g. from a
+       gamepad. jump_pressed is cleared by the step. */
+    bool manual_input;
+    float move;        /* -1 left .. 1 right */
+    bool jump_pressed; /* pressed since the last step */
+    bool jump_held;
+
+    /* State, for reading (e.g. to pick an animation). */
+    bool grounded;
+    float coyote_left; /* seconds */
+    float buffer_left; /* seconds */
+    bool rising;       /* in a jump that a release can still cut */
+} ScenePlatformer;
+#endif
+
 typedef struct SceneEntity {
     SceneTransform transform;
     ScenePose pose;            /* from the last _update_poses or _draw */
@@ -898,7 +948,8 @@ typedef struct SceneEntity {
     SceneBoxCollider collider; /* if it has one */
     bool visible;              /* false: its sprite isn't drawn */
 #if SCENE_PHYSICS
-    b2BodyId body; /* if it has a rigidbody or a collider */
+    b2BodyId body;              /* if it has a rigidbody or a collider */
+    ScenePlatformer platformer; /* if it has a platformer controller */
 #endif
 } SceneEntity;
 
@@ -971,6 +1022,10 @@ b2BodyDef scene_body_def(ScenePose pose, b2BodyType type, SceneEntity *entity);
 void scene_add_box_collider(b2BodyId body, Vector2 scale, SceneBoxCollider collider, SceneEntity *entity);
 void scene_physics_advance(b2WorldId world, float *time, float dt);
 void scene_body_to_entity(SceneEntity *entity, ScenePose parent);
+
+/* Moves a platformer character for this frame (before the physics steps): input, ground,
+   coyote time, jump buffer, jump cut, acceleration. The scene's _step calls it. */
+void scene_platformer_update(SceneEntity *entity, float dt);
 #endif
 
 #ifdef __cplusplus
@@ -1194,6 +1249,85 @@ void scene_body_to_entity(SceneEntity *entity, ScenePose parent) {
     }
     t->rotation = rotation - parent_rotation;
 }
+
+/* Standing on something: a contact that pushes the body up (y points down). */
+static bool on_ground(b2BodyId body) {
+    b2ContactData contacts[16];
+    const int count = b2Body_GetContactData(body, contacts, 16);
+    int i;
+    for (i = 0; i < count; ++i) {
+        const b2Manifold *m = &contacts[i].manifold;
+        /* The normal points from shape A to shape B: turn it to point from this body to
+           the other one; the ground is below when it points down. */
+        const b2BodyId a = b2Shape_GetBody(contacts[i].shapeIdA);
+        const float down = B2_ID_EQUALS(a, body) ? m->normal.y : -m->normal.y;
+        if (m->pointCount > 0 && down > 0.7f) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static float approach(float value, float target, float step) {
+    return value < target ? fminf(value + step, target) : fmaxf(value - step, target);
+}
+
+void scene_platformer_update(SceneEntity *entity, float dt) {
+    ScenePlatformer *p = &entity->platformer;
+    b2Vec2 v;
+    float vx, vy;
+    bool want_jump;
+    if (!b2Body_IsValid(entity->body)) {
+        return;
+    }
+    if (!p->manual_input) {
+        const bool right = IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT);
+        const bool left = IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT);
+        p->move = (float)right - (float)left;
+        p->jump_pressed = p->jump_pressed || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
+        p->jump_held = IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_W) || IsKeyDown(KEY_UP);
+    }
+    v = b2Body_GetLinearVelocity(entity->body);
+    vx = v.x * SCENE_PIXELS_PER_METER;
+    vy = v.y * SCENE_PIXELS_PER_METER;
+
+    /* On the ground (and not on the way up): coyote time starts over. */
+    p->grounded = vy > -1.0f && on_ground(entity->body);
+    if (p->grounded) {
+        p->coyote_left = p->coyote_time;
+        p->rising = false;
+    } else {
+        p->coyote_left = fmaxf(0.0f, p->coyote_left - dt);
+    }
+
+    /* A press is remembered for jump_buffer seconds. */
+    p->buffer_left = p->jump_pressed ? p->jump_buffer : fmaxf(0.0f, p->buffer_left - dt);
+    want_jump = p->jump_pressed || p->buffer_left > 0.0f;
+    if (want_jump && (p->grounded || p->coyote_left > 0.0f)) {
+        /* The speed that reaches jump_height against this body's gravity. */
+        const float gravity = fabsf(SCENE_GRAVITY_Y * b2Body_GetGravityScale(entity->body)) * SCENE_PIXELS_PER_METER;
+        vy = -sqrtf(2.0f * gravity * p->jump_height);
+        p->grounded = false;
+        p->coyote_left = 0.0f;
+        p->buffer_left = 0.0f;
+        p->rising = true;
+    }
+
+    /* Jump cut: let go early, jump lower. */
+    if (p->rising && vy >= 0.0f) {
+        p->rising = false;
+    } else if (p->rising && !p->jump_held) {
+        vy *= p->jump_cut;
+        p->rising = false;
+    }
+
+    /* Run: towards move * move_speed, with less grip in the air. */
+    vx = approach(vx, p->move * p->move_speed, p->acceleration * (p->grounded ? 1.0f : p->air_control) * dt);
+    vy = fminf(vy, p->max_fall_speed);
+
+    p->jump_pressed = false;
+    b2Body_SetLinearVelocity(entity->body, (b2Vec2){vx / SCENE_PIXELS_PER_METER, vy / SCENE_PIXELS_PER_METER});
+}
 #endif
 )GEN",
                                values);
@@ -1205,7 +1339,7 @@ void scene_body_to_entity(SceneEntity *entity, ScenePose parent) {
 bool writeProjectMain(const std::string& projectName, const std::filesystem::path& outDir, std::string& error) {
     const std::string c = fill(R"CODE({{marker}}: example main() for project "{{project}}". Do not edit:
 // re-export from the editor instead. To change it, copy it to your own file in src/ and
-// build with make EXCLUDE=src/project_main.c. Left / Right switch scenes.
+// build with make EXCLUDE=src/project_main.c. Tab / Shift+Tab switch scenes.
 #include <raylib.h>
 
 #include "scene_manager.h"
@@ -1220,8 +1354,10 @@ int main(void) {
     scene_manager_init(&scenes, 0);
 
     while (!WindowShouldClose()) {
-        if (IsKeyPressed(KEY_RIGHT)) scenes.current = (scenes.current + 1) % SCENE_ID_COUNT;
-        if (IsKeyPressed(KEY_LEFT)) scenes.current = (scenes.current + SCENE_ID_COUNT - 1) % SCENE_ID_COUNT;
+        if (IsKeyPressed(KEY_TAB)) {
+            const int step = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT) ? SCENE_ID_COUNT - 1 : 1;
+            scenes.current = (scenes.current + step) % SCENE_ID_COUNT;
+        }
         scene_manager_update(&scenes, GetFrameTime());
 
         BeginDrawing();

@@ -159,6 +159,23 @@ void fromJson(const json& j, RigidbodyComponent& r) {
     read(j, "isBullet", r.isBullet);
 }
 
+json toJson(const PlatformerControllerComponent& p) {
+    return {{"moveSpeed", p.moveSpeed},   {"acceleration", p.acceleration}, {"airControl", p.airControl},
+            {"jumpHeight", p.jumpHeight}, {"coyoteTime", p.coyoteTime},     {"jumpBuffer", p.jumpBuffer},
+            {"jumpCut", p.jumpCut},       {"maxFallSpeed", p.maxFallSpeed}};
+}
+
+void fromJson(const json& j, PlatformerControllerComponent& p) {
+    read(j, "moveSpeed", p.moveSpeed);
+    read(j, "acceleration", p.acceleration);
+    read(j, "airControl", p.airControl);
+    read(j, "jumpHeight", p.jumpHeight);
+    read(j, "coyoteTime", p.coyoteTime);
+    read(j, "jumpBuffer", p.jumpBuffer);
+    read(j, "jumpCut", p.jumpCut);
+    read(j, "maxFallSpeed", p.maxFallSpeed);
+}
+
 // The parent is saved by the scene serializer, like Transform's origin.
 json toJson(const UIRectTransformComponent& t) {
     return {{"anchorMin", toJson(t.anchorMin)},
@@ -327,6 +344,38 @@ void drawRigidbody(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
     }
 }
 
+void drawPlatformer(Scene& scene, entt::entity e, ui::PropertyGrid& grid) {
+    auto& p = scene.registry().get<PlatformerControllerComponent>(e);
+    ui::dragFloat(grid.row("Move Speed"), &p.moveSpeed, 1.0f, nullptr, "%.0f /s");
+    ui::dragFloat(grid.row("Acceleration"), &p.acceleration, 10.0f, nullptr, "%.0f /s^2");
+    ui::dragFloat(grid.row("Air Control"), &p.airControl, 0.01f);
+    ui::dragFloat(grid.row("Jump Height"), &p.jumpHeight, 1.0f, nullptr, "%.0f");
+    ui::dragFloat(grid.row("Coyote Time"), &p.coyoteTime, 0.005f, nullptr, "%.3f s");
+    ui::dragFloat(grid.row("Jump Buffer"), &p.jumpBuffer, 0.005f, nullptr, "%.3f s");
+    ui::dragFloat(grid.row("Jump Cut"), &p.jumpCut, 0.01f);
+    ui::dragFloat(grid.row("Max Fall"), &p.maxFallSpeed, 1.0f, nullptr, "%.0f /s");
+    p.moveSpeed = std::max(p.moveSpeed, 0.0f);
+    p.acceleration = std::max(p.acceleration, 0.0f);
+    p.airControl = std::clamp(p.airControl, 0.0f, 1.0f);
+    p.jumpHeight = std::max(p.jumpHeight, 0.0f);
+    p.coyoteTime = std::clamp(p.coyoteTime, 0.0f, 1.0f);
+    p.jumpBuffer = std::clamp(p.jumpBuffer, 0.0f, 1.0f);
+    p.jumpCut = std::clamp(p.jumpCut, 0.0f, 1.0f);
+    p.maxFallSpeed = std::max(p.maxFallSpeed, 0.0f);
+
+    // What it needs to move.
+    const auto* rb = scene.registry().try_get<RigidbodyComponent>(e);
+    if (rb == nullptr || rb->type != BodyType::Dynamic) {
+        ui::label(grid.row(""), "Needs a dynamic Rigidbody.", ui::styleColor(TEXT_COLOR_DISABLED));
+    } else if (!rb->fixedRotation) {
+        ui::label(grid.row(""), "Tip: turn on Fixed Rot. in the Rigidbody.", ui::styleColor(TEXT_COLOR_DISABLED));
+    }
+    if (!scene.registry().all_of<BoxColliderComponent>(e)) {
+        ui::label(grid.row(""), "Needs a Box Collider to stand on things.", ui::styleColor(TEXT_COLOR_DISABLED));
+    }
+    ui::label(grid.row(""), "Keys: A / D or arrows, Space / W / Up", ui::styleColor(TEXT_COLOR_DISABLED));
+}
+
 // Anchor presets: where the element is pinned (or stretched) on its parent. Choosing one
 // sets the anchors and the pivot, and puts the element flush against that point or edge.
 struct AnchorPreset {
@@ -459,6 +508,8 @@ const std::array kTypes{
     makeType<BoxColliderComponent>("Box Collider", "boxCollider", ICON_BOX_CORNERS_BIG, true, ComponentScope::World,
                                    drawBoxCollider),
     makeType<RigidbodyComponent>("Rigidbody", "rigidbody", ICON_PLAYER_JUMP, true, ComponentScope::World, drawRigidbody),
+    makeType<PlatformerControllerComponent>("Platformer Controller", "platformer", ICON_PLAYER, true, ComponentScope::World,
+                                            drawPlatformer),
     makeType<UIRectTransformComponent>("UI Rect Transform", "uiRectTransform", ICON_BOX_CENTER, false,
                                        ComponentScope::UI, drawUIRectTransform),
     makeType<UIRectangleComponent>("UI Rectangle", "uiRectangle", ICON_WINDOW, true, ComponentScope::UI,

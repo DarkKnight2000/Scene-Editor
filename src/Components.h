@@ -80,6 +80,23 @@ struct RigidbodyComponent {
     bool isBullet = false;      // continuous collision for fast movers
 };
 
+// A player-controlled platformer character, for an entity with a dynamic Rigidbody and a Box
+// Collider. The exported game moves it left / right and makes it jump from the keyboard (or
+// input the game provides). Speeds and heights are in scene units.
+//   Coyote time: a jump still works for a moment after walking off a ledge.
+//   Jump buffer: a jump pressed just before landing happens on landing.
+//   Jump cut: releasing jump early ends the jump lower (variable jump height).
+struct PlatformerControllerComponent {
+    float moveSpeed = 300.0f;    // per second
+    float acceleration = 2400.0f; // per second squared, on the ground
+    float airControl = 0.6f;     // share of the acceleration in the air (0..1)
+    float jumpHeight = 120.0f;
+    float coyoteTime = 0.1f;     // seconds
+    float jumpBuffer = 0.12f;    // seconds
+    float jumpCut = 0.5f;        // upward speed kept when jump is released early (0..1)
+    float maxFallSpeed = 900.0f; // per second
+};
+
 // --- UI ---------------------------------------------------------------------------------
 // UI elements live under the Canvas root instead of the World. They're laid out on the
 // screen rather than placed in the scene, so the World's transform (camera, screen shake)

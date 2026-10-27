@@ -123,7 +123,7 @@ Make also reads these variables from the environment. Setting `RAYLIB_SRC` (or
 
 ## Your own main()
 
-`src/project_main.c` is a minimal program: a resizable window, a SceneManager, Left / Right
+`src/project_main.c` is a minimal program: a resizable window, a SceneManager, Tab / Shift+Tab
 to switch scenes, and comments where your own drawing goes. The [README](README.md#a-whole-program)
 shows it. Either edit a copy of it (in your own file in `src/`, built with
 `EXCLUDE=src/project_main.c`, because the export rewrites `project_main.c`) or write your

@@ -10,7 +10,8 @@ typedef struct SceneEntity {
     SceneBoxCollider collider; /* if it has one */
     bool visible;              /* false: its sprite isn't drawn */
 #if SCENE_PHYSICS
-    b2BodyId body;             /* if it has a rigidbody or a collider */
+    b2BodyId body;              /* if it has a rigidbody or a collider */
+    ScenePlatformer platformer; /* if it has a platformer controller (see Physics) */
 #endif
 } SceneEntity;
 ```
