@@ -1,4 +1,4 @@
-option('raylib_dir', type : 'string', value : 'E:/Documents/C_projects/raylib-6.0',
-       description : 'Path to the raylib source checkout (built into this project\'s build dir)')
+option('raylib_dir', type : 'string', value : '',
+       description : 'Path to a raylib source checkout (built into this project\'s build dir); empty: download raylib with git')
 option('raygui_dir', type : 'string', value : '',
        description : 'Directory containing raygui.h (defaults to <raylib_dir>/examples/core)')

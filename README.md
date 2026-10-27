@@ -98,16 +98,20 @@ See [Entities](docs/entities.md) and [UI](docs/ui.md) for more.
 
 ## Building the editor
 
-The editor is C++20, built with [Meson](https://mesonbuild.com/). It needs a raylib
-source checkout (raylib and raygui are built into the build folder); nlohmann/json
-comes from `subprojects/`.
+The editor is C++20, built with [Meson](https://mesonbuild.com/). raylib and raygui are
+built from raylib's sources into the build folder; nlohmann/json comes from
+`subprojects/`.
 
 ```bash
-meson setup build -Draylib_dir=path/to/raylib
+meson setup build
 meson compile -C build
 ```
 
 Then run `build/SceneEditor`.
+
+The first `meson setup` downloads raylib 6.0 with git into `external/downloads/`, once.
+To use a raylib source checkout you already have instead, pass its folder:
+`meson setup build -Draylib_dir=path/to/raylib`.
 
 | Command | What it does |
 |---|---|

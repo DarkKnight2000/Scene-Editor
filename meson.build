@@ -49,8 +49,8 @@ version_conf.set_quoted('SCENE_EDITOR_VERSION', meson.project_version())
 configure_file(output : 'EditorVersion.h', configuration : version_conf)
 
 app_link_args = []
-if host_machine.system() == 'windows'
-  # GUI subsystem (no console window) while keeping a portable main().
+if host_machine.system() == 'windows' and meson.get_compiler('cpp').get_linker_id() in ['link', 'lld-link']
+  # GUI subsystem (no console window) while keeping a portable main(). MinGW does this itself.
   app_link_args += '-Wl,/ENTRY:mainCRTStartup'
 endif
 

@@ -2,10 +2,10 @@
 
 raygui_dir = get_option('raygui_dir')
 if raygui_dir == ''
-  raygui_dir = get_option('raylib_dir') / 'examples/core'
+  raygui_dir = raylib_root / 'examples/core' # set by external/raylib
 endif
 
-if not import('fs').is_file(raygui_dir / 'raygui.h')
+if not fs.is_file(raygui_dir / 'raygui.h')
   error('raygui.h not found in "@0@" (set -Draygui_dir=...)'.format(raygui_dir))
 endif
 
