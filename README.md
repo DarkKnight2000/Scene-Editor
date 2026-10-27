@@ -82,7 +82,16 @@ scale with it:
 ```c
 const Rectangle r = scenes.hud.health_bar.rect;
 DrawRectangleRec((Rectangle){r.x, r.y, r.width * health, r.height}, GREEN);
-DrawText("HP", (int)r.x, (int)(r.y - 24.0f * scenes.hud.ui_scale), (int)(20.0f * scenes.hud.ui_scale), WHITE);
+```
+
+You can also draw things that aren't in the scene at all, placed relative to an element.
+Here an "HP" label sits just above the health bar: 20 units tall with a 4-unit gap, in
+canvas units scaled by `ui_scale`:
+
+```c
+const float size = 20.0f * scenes.hud.ui_scale;
+const float gap = 4.0f * scenes.hud.ui_scale;
+DrawText("HP", (int)r.x, (int)(r.y - gap - size), (int)size, WHITE);
 ```
 
 See [Entities](docs/entities.md) and [UI](docs/ui.md) for more.
