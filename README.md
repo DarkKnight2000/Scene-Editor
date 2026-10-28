@@ -117,9 +117,11 @@ update a scene, in this order:
 | `scene_<name>_update_poses(s)` | every entity's `pose`, from the transforms |
 | `scene_<name>_update_ui(s)` | every UI element's `rect`, and the scene's `ui_scale`, for the window size |
 
-`scene_<name>_draw()` already calls `update_poses`, `scene_<name>_draw_ui()` calls
-`update_ui`, and `scene_manager_update()` calls `step`. You only need to call one yourself
-when you don't use the function that calls it.
+- **Drawing the world:** call `step`, then `scene_<name>_draw(s)`, which updates the poses
+  itself.
+- **Drawing the UI:** call `scene_<name>_draw_ui(s)`, which updates the UI itself.
+- **Only updating** (you draw everything yourself): call `step`, `update_poses` and
+  `update_ui`.
 
 **In the world** (between `scene_begin` and `scene_end`), use an entity's `pose` for its
 current transform, or `scene_box()` for the box of its collider:
