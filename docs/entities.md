@@ -72,6 +72,14 @@ transform: `position`, `rotation` and `scale`.
   draw.
 - **The World root:** the scene's `world` transform moves, rotates and zooms the whole
   scene, e.g. for camera movement or screen shake.
+- **Scale and sizes:** `scale` multiplies the sizes of the entity's components without
+  changing them: `sprite.size` and `collider.size` (and `offset`) stay as set in the editor,
+  and are multiplied by `pose.scale` when drawn or placed. A circle collider's `radius` is
+  multiplied by the larger of the two scales. Children multiply their scale by their
+  parent's, unless `ignore_parent_scale` is set.
+- **Scale and physics:** a Box2D body's shape is made from the entity's scale once, in
+  `scene_<name>_init`. Changing `transform.scale` later resizes the drawn sprite but not the
+  body's shape. See [Physics](physics.md#moving-bodies).
 
 ```c
 level.platform.transform.position.x += 60.0f * GetFrameTime(); /* children follow */

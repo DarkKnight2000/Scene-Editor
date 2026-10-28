@@ -85,6 +85,21 @@ player_controls(level.player.body);
 Changing an entity's transform doesn't move its body: the next step writes the body's place
 back into the transform.
 
+**Scale is fixed:** a body's shape is made from the entity's scale (and its parents') once,
+in `scene_<name>_init`. Changing `transform.scale` later resizes the drawn sprite, not the
+Box2D shape. To resize a body, destroy its shapes and add a new one with the new scale (for
+a child entity, pass its scale after its parents', without the World's):
+
+```c
+b2ShapeId shapes[4];
+const int count = b2Body_GetShapes(level.player.body, shapes, 4);
+for (int i = 0; i < count; ++i) {
+    b2DestroyShape(shapes[i], true);
+}
+level.player.transform.scale = (Vector2){2.0f, 2.0f};
+scene_add_collider(level.player.body, level.player.transform.scale, level.player.collider, &level.player.entity);
+```
+
 ## Platformer controller
 
 Add a **Platformer Controller** to an entity with a dynamic Rigidbody (with **Fixed Rot.**
