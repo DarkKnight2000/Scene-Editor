@@ -1,9 +1,21 @@
 # Scene Editor
 
-A visual scene editor for [raylib](https://www.raylib.com/) games. Lay out levels and UI
-with the mouse instead of working out positions by hand, then export plain C11 that your
-game builds with. Every entity and UI element becomes a named field of a C struct, so the
-game reads where things are and draws its own things there, scaled to any window.
+_Yep, this is vibecoded software: the editor itself is AI-generated code. The code it
+generates for your game, though, comes from a fixed set of rules applied to the layouts
+you edit in the editor._
+
+A visual scene editor for [raylib](https://www.raylib.com/) games. Block out your levels
+and UI visually instead of working out positions by hand, then export them as plain C11
+code for your game. Every entity and UI element becomes a named field of a C struct, so
+your game can read its position and scale and draw your own things there.
+
+## Why it's useful
+
+When working with game libraries like raylib, I often found myself positioning UI elements
+with length calculations and lots of temporary variables. Even then, the layout didn't
+scale well, because my calculations assumed one reference screen size and players'
+screens differ. This is my attempt to automate most of that maths in a way that scales
+well, while staying out of the main game code.
 
 ![The editor with a physics scene: entities on the left, the scene in the middle, the selected ramp's components on the right](docs/images/editor-physics.png)
 
@@ -29,6 +41,11 @@ game reads where things are and draws its own things there, scaled to any window
 
 ## The exported game
 
+This is what a minimal `main()` looks like with the generated code. The exported
+`project_main.c` also lets you switch scenes with Tab and Shift+Tab.
+
+**With the SceneManager**, which holds all your scenes and switches between them:
+
 ```c
 #include "scene_manager.h"
 
@@ -52,7 +69,36 @@ int main(void) {
 }
 ```
 
+**With a single scene**, here one called `level` (it has `step` and `deinit` only when it
+has physics bodies, and `draw_ui` only when it has UI elements):
+
+```c
+#include "level.h"
+
+int main(void) {
+    static LevelScene level;
+    InitWindow(1280, 720, "My game");
+    scene_level_init(&level);
+    while (!WindowShouldClose()) {
+        scene_level_step(&level, GetFrameTime());
+        BeginDrawing();
+        ClearBackground(BLACK);
+        scene_begin();
+        scene_level_draw(&level);
+        scene_end();
+        scene_level_draw_ui(&level);
+        EndDrawing();
+    }
+    scene_level_deinit(&level);
+    CloseWindow();
+}
+```
+
 ![The exported physics scene running, after the boxes have fallen](docs/images/game-physics.png)
+
+Using the SceneManager, or a scene's `scene_<name>_draw()`, is optional. You can call
+`scene_<name>_update_poses()` (and `scene_<name>_step()` for physics) to update the
+entity positions, and draw your own entities with them.
 
 The guides in [docs/](docs/README.md) cover the exported code: scenes, entities, UI,
 scaling, physics and the full API.
@@ -62,8 +108,21 @@ scaling, physics and the full API.
 The editor does the placement maths; your game does the drawing. Each entity and UI
 element you named in the editor is a field of its scene, holding where it ended up.
 
-**In the world** (between `scene_begin` and `scene_end`), use an entity's `pose`, or
-`scene_box()` for the box of its collider:
+The world and the UI scale differently, so they're updated separately. Each frame, these
+update a scene, in this order:
+
+| Function | Updates |
+|---|---|
+| `scene_<name>_step(s, dt)` | physics: moves the bodies and writes them back to the entities' transforms |
+| `scene_<name>_update_poses(s)` | every entity's `pose`, from the transforms |
+| `scene_<name>_update_ui(s)` | every UI element's `rect`, and the scene's `ui_scale`, for the window size |
+
+`scene_<name>_draw()` already calls `update_poses`, `scene_<name>_draw_ui()` calls
+`update_ui`, and `scene_manager_update()` calls `step`. You only need to call one yourself
+when you don't use the function that calls it.
+
+**In the world** (between `scene_begin` and `scene_end`), use an entity's `pose` for its
+current transform, or `scene_box()` for the box of its collider:
 
 ```c
 const ScenePose p = scenes.level.player.pose;
