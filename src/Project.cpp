@@ -1,5 +1,6 @@
 #include "Project.h"
 
+#include "AppPaths.h"
 #include "EditorPaths.h"
 
 #include <nlohmann/json.hpp>
@@ -121,6 +122,10 @@ const char* exportPolicyLabel(ExportPolicy policy) {
 }
 
 std::string Project::defaultBox2dDir() {
+    // Installed: the copy next to the editor. Development build: the source tree's.
+    if (const std::filesystem::path installed = installedPath("box2d"); !installed.empty()) {
+        return toGenericUtf8(installed);
+    }
     return SCENE_EDITOR_BOX2D_DIR;
 }
 

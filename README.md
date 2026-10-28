@@ -185,6 +185,21 @@ To use a raylib source checkout you already have instead, pass its folder:
 
 **UI scale:** Ctrl+= and Ctrl+- make the editor bigger or smaller; Ctrl+0 goes back to 100%.
 
+### Windows installer
+
+With [NSIS](https://nsis.sourceforge.io/) installed, build `SceneEditor-<version>-setup.exe`
+from a release build:
+
+```bash
+meson setup build-release --buildtype=release -Db_vscrt=mt
+meson compile -C build-release installer
+```
+
+It installs for the current user, without admin rights, into
+`%LOCALAPPDATA%\Programs\SceneEditor`: the editor, Box2D and raylib's sources. Play then
+builds games with `mingw32-make` and `gcc` from the PATH (change them in the `play` section
+of `%APPDATA%\SceneEditor\editor.json`), compiling raylib along with the game.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Box2D (MIT) is copied into exports that use physics.

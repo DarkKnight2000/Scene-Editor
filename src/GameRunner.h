@@ -5,22 +5,26 @@
 #include <string>
 #include <vector>
 
-// How the Play button builds an exported project. Empty fields use the defaults this editor
-// was built with (its own C compiler and raylib build; see PlayDefaults.h, made by meson).
+// How the Play button builds an exported project. Empty fields use the defaults:
+//   installed editor     gcc (Windows) or cc, the Makefile's CFLAGS, and raylib built from
+//                        the raylib/src/ installed next to the editor (see AppPaths.h)
+//   development build    the C compiler and raylib this editor was built with (PlayDefaults.h,
+//                        made by meson)
 struct PlaySettings {
     std::string make;          // GNU make program, e.g. mingw32-make
     std::string cc;            // C compiler
     std::string cflags;        // replaces the Makefile's CFLAGS
-    std::string raylibInclude; // folder containing raylib.h
-    std::string raylibLibs;    // raylib library to link (path without spaces)
+    std::string raylibSource;  // raylib's src/ folder, built along with the game
+    std::string raylibInclude; // or a prebuilt raylib: the folder containing raylib.h
+    std::string raylibLibs;    // and the library to link (path without spaces)
 };
 
 // `settings` with every empty field replaced by its default and paths using forward
 // slashes: what Play, and the exported project's VS Code files, build with.
 PlaySettings resolvePlaySettings(const PlaySettings& settings);
 
-// The make variables for a resolved PlaySettings: CC=..., CFLAGS=..., RAYLIB_INCLUDE=...,
-// RAYLIB_LIBS=... (one argument each).
+// The make variables for a resolved PlaySettings: CC=..., CFLAGS=..., and RAYLIB_SRC=... or
+// RAYLIB_INCLUDE=... RAYLIB_LIBS=... (one argument each; empty settings are left out).
 std::vector<std::string> playMakeVariables(const PlaySettings& resolved);
 
 class ChildProcess;

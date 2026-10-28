@@ -58,6 +58,7 @@ endif
 editor_lib = static_library(
   'editor',
   files(
+    'src/AppPaths.cpp',
     'src/Console.cpp',
     'src/EditorConfig.cpp',
     'src/EditorLayout.cpp',
@@ -89,7 +90,7 @@ if host_machine.system() == 'windows'
                                                        depend_files : 'res/SceneEditor.ico')
 endif
 
-executable(
+editor_exe = executable(
   'SceneEditor',
   'src/main.cpp',
   app_resources,
@@ -109,3 +110,28 @@ executable(
   dependencies : [raygui_dep, json_dep],
   build_by_default : false,
 )
+
+# Windows installer (NSIS, installer/SceneEditor.nsi), from a release build with the C runtime
+# linked in, so it runs without the Visual C++ redistributable:
+#   meson setup build-release --buildtype=release -Db_vscrt=mt
+#   meson compile -C build-release installer      -> SceneEditor-<version>-setup.exe
+makensis = find_program('makensis', dirs : ['C:/Program Files (x86)/NSIS', 'C:/Program Files/NSIS'],
+                        required : false)
+if host_machine.system() == 'windows' and makensis.found()
+  if get_option('buildtype') == 'debug' or get_option('b_vscrt') not in ['mt', 'static_from_buildtype']
+    message('The installer target is meant for a release build with -Db_vscrt=mt (see meson.build)')
+  endif
+  run_target('installer',
+    command : [makensis, '-V2',
+               '-DVERSION=' + meson.project_version(),
+               '-DEXE=' + editor_exe.full_path(),
+               '-DICON=' + meson.current_source_dir() / 'res/SceneEditor.ico',
+               '-DLICENSE=' + meson.current_source_dir() / 'LICENSE',
+               '-DBOX2D_DIR=' + meson.current_source_dir() / 'external/box2d',
+               '-DRAYLIB_SRC=' + raylib_src,
+               '-DRAYLIB_LICENSE=' + raylib_dir / 'LICENSE',
+               '-DOUTFILE=' + meson.current_build_dir() / 'SceneEditor-' + meson.project_version() + '-setup.exe',
+               meson.current_source_dir() / 'installer/SceneEditor.nsi'],
+    depends : editor_exe,
+  )
+endif

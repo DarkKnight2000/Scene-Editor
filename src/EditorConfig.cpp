@@ -145,6 +145,7 @@ bool loadEditorConfig(const std::filesystem::path& path, EditorConfig& config, s
         readText("make", config.play.make);
         readText("cc", config.play.cc);
         readText("cflags", config.play.cflags);
+        readText("raylibSource", config.play.raylibSource);
         readText("raylibInclude", config.play.raylibInclude);
         readText("raylibLibs", config.play.raylibLibs);
     }
@@ -187,6 +188,7 @@ bool saveEditorConfig(const std::filesystem::path& path, const EditorConfig& con
          {{"make", config.play.make},
           {"cc", config.play.cc},
           {"cflags", config.play.cflags},
+          {"raylibSource", config.play.raylibSource},
           {"raylibInclude", config.play.raylibInclude},
           {"raylibLibs", config.play.raylibLibs}}},
     };

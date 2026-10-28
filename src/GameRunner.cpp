@@ -1,5 +1,6 @@
 #include "GameRunner.h"
 
+#include "AppPaths.h"
 #include "Log.h"
 #include "PlayDefaults.h"
 
@@ -275,17 +276,52 @@ bool containsWord(const std::string& text, const char* word) {
 
 PlaySettings resolvePlaySettings(const PlaySettings& settings) {
     PlaySettings r;
-    r.make = makePath(orDefault(settings.make, SCENE_EDITOR_PLAY_MAKE));
-    r.cc = orDefault(settings.cc, SCENE_EDITOR_PLAY_CC);
-    r.cflags = orDefault(settings.cflags, SCENE_EDITOR_PLAY_CFLAGS);
-    r.raylibInclude = makePath(orDefault(settings.raylibInclude, SCENE_EDITOR_PLAY_RAYLIB_INCLUDE));
-    r.raylibLibs = makePath(orDefault(settings.raylibLibs, SCENE_EDITOR_PLAY_RAYLIB_LIBS));
+    const std::filesystem::path installedRaylib = installedPath("raylib/src");
+    const bool ownRaylib = !settings.raylibSource.empty() || !settings.raylibInclude.empty();
+    if (!installedRaylib.empty()) {
+        // Installed editor: the make on the PATH, and raylib built with the game's compiler.
+#ifdef _WIN32
+        r.make = makePath(orDefault(settings.make, "mingw32-make"));
+        r.cc = orDefault(settings.cc, "gcc");
+#else
+        r.make = makePath(orDefault(settings.make, "make"));
+        r.cc = settings.cc;
+#endif
+        r.cflags = settings.cflags;
+        if (!ownRaylib) {
+            r.raylibSource = makePath(pathWithoutSpaces(installedRaylib).string());
+        }
+    } else {
+        // Development build: what the editor itself was built with.
+        r.make = makePath(orDefault(settings.make, SCENE_EDITOR_PLAY_MAKE));
+        r.cc = orDefault(settings.cc, SCENE_EDITOR_PLAY_CC);
+        r.cflags = orDefault(settings.cflags, SCENE_EDITOR_PLAY_CFLAGS);
+        if (!ownRaylib) {
+            r.raylibInclude = makePath(SCENE_EDITOR_PLAY_RAYLIB_INCLUDE);
+            r.raylibLibs = makePath(SCENE_EDITOR_PLAY_RAYLIB_LIBS);
+        }
+    }
+    if (ownRaylib) {
+        r.raylibSource = makePath(settings.raylibSource);
+        r.raylibInclude = makePath(settings.raylibInclude);
+        r.raylibLibs = makePath(settings.raylibLibs);
+    }
     return r;
 }
 
 std::vector<std::string> playMakeVariables(const PlaySettings& resolved) {
-    return {"CC=" + resolved.cc, "CFLAGS=" + resolved.cflags, "RAYLIB_INCLUDE=" + resolved.raylibInclude,
-            "RAYLIB_LIBS=" + resolved.raylibLibs};
+    std::vector<std::string> variables;
+    const auto add = [&](const char* name, const std::string& value) {
+        if (!value.empty()) {
+            variables.push_back(std::string(name) + "=" + value);
+        }
+    };
+    add("CC", resolved.cc);
+    add("CFLAGS", resolved.cflags);
+    add("RAYLIB_SRC", resolved.raylibSource);
+    add("RAYLIB_INCLUDE", resolved.raylibInclude);
+    add("RAYLIB_LIBS", resolved.raylibLibs);
+    return variables;
 }
 
 GameRunner::GameRunner() = default;
