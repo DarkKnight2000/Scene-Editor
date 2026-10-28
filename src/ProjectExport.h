@@ -12,7 +12,7 @@
 // Scene files in a project's scenes folder.
 inline constexpr const char* kSceneExtension = ".json";
 
-// Where a project is exported to.
+// Where a project is exported to (Project Settings; by default <project>/export).
 std::filesystem::path projectExportDir(const Project& project);
 
 // Exports every saved scene of `project` into projectExportDir() (see SceneExporter.h),

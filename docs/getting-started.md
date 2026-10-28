@@ -6,7 +6,7 @@ In the editor, use **Export** (Ctrl+E) or **Play** (F5, which exports, builds an
 Both export every scene. Play also makes the game start in the scene you're editing (the
 active tab); Export starts it in the first scene. See `SCENE_ID_START` in
 [Scenes](scenes.md#the-scenemanager).
-The project is written to `<project>/export/`:
+The project is written to `<project>/export/` (or the Export folder set in Project Settings):
 
 ```text
 export/
@@ -63,6 +63,9 @@ Git Bash and MSYS shells wait as usual.
 ## Export options
 
 **Project Settings** has an Export section.
+
+**Export folder:** where the project is exported to, `export` by default. A relative path
+starts at the project folder; **Default** puts it back. The full path is shown below it.
 
 **Scale mode:** the export has only the project's [scale mode](scaling.md) (Expand, Fit
 or Fill), set above the Export section.

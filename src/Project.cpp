@@ -82,7 +82,8 @@ void readPolicy(const json& j, const char* key, ExportPolicy& out) {
 }
 
 json exportJson(const ExportSettings& e) {
-    return {{"makefile", policyKey(e.makefile)},
+    return {{"folder", e.folder},
+            {"makefile", policyKey(e.makefile)},
             {"projectMain", policyKey(e.projectMain)},
             {"vscodeSettings", policyKey(e.vscodeSettings)},
             {"gitignore", policyKey(e.gitignore)}};
@@ -125,6 +126,11 @@ std::string Project::defaultBox2dDir() {
 
 std::filesystem::path Project::box2dPath() const {
     const std::filesystem::path dir = fromUtf8(box2dDir);
+    return dir.is_absolute() ? dir : (root() / dir).lexically_normal();
+}
+
+std::filesystem::path Project::exportPath() const {
+    const std::filesystem::path dir = fromUtf8(exportSettings.folder.empty() ? kDefaultExportFolder : exportSettings.folder);
     return dir.is_absolute() ? dir : (root() / dir).lexically_normal();
 }
 
@@ -200,6 +206,9 @@ bool loadProject(const std::filesystem::path& path, Project& project, std::strin
     }
     if (const auto e = j.find("export"); e != j.end() && e->is_object()) {
         ExportSettings& settings = loaded.exportSettings;
+        if (const std::string folder = e->value("folder", std::string()); !folder.empty()) {
+            settings.folder = folder;
+        }
         readPolicy(*e, "makefile", settings.makefile);
         readPolicy(*e, "projectMain", settings.projectMain);
         readPolicy(*e, "vscodeSettings", settings.vscodeSettings);

@@ -723,7 +723,7 @@ void Workspace::openProjectSettings() {
 }
 
 void Workspace::drawProjectSettingsDialog() {
-    const Rectangle box = beginModal(760.0f, 600.0f);
+    const Rectangle box = beginModal(760.0f, 660.0f);
     bool close = ui::windowBox(box, "Project Settings");
     const float lx = box.x + 16.0f;
     const float fx = box.x + 200.0f;
@@ -769,8 +769,19 @@ void Workspace::drawProjectSettingsDialog() {
     ui::label({fx, box.y + 152.0f, fw, 24.0f}, help[std::clamp(m_settingsMode, 0, 2)], dim);
     ui::label({fx, box.y + 176.0f, fw, 24.0f}, "The exported game always scales this way.", dim);
 
-    // Export: when files you may edit are written.
+    // Export: where to, and when files you may edit are written.
     DrawLineV({lx, box.y + 216.0f}, {box.x + box.width - 16.0f, box.y + 216.0f}, ui::styleColor(LINE_COLOR));
+    ui::label({lx, box.y + 228.0f, 180.0f, 26.0f}, "Export folder", text);
+    ui::textField({fx, box.y + 228.0f, fw - 96.0f, 26.0f}, m_settingsExport.folder);
+    if (ui::button({fx + fw - 90.0f, box.y + 228.0f, 90.0f, 26.0f}, "Default")) {
+        m_settingsExport.folder = kDefaultExportFolder;
+    }
+    {
+        Project candidate = m_project;
+        candidate.exportSettings.folder = m_settingsExport.folder;
+        const std::u8string shown = candidate.exportPath().u8string();
+        ui::label({fx, box.y + 256.0f, fw, 24.0f}, std::string(shown.begin(), shown.end()).c_str(), dim);
+    }
 
     std::vector<std::string> policies;
     for (const ExportPolicy policy : kExportPolicies) {
@@ -788,18 +799,18 @@ void Workspace::drawProjectSettingsDialog() {
     };
     // Bottom row first: an open dropdown draws over the rows below it.
     for (int i = static_cast<int>(std::size(rows)) - 1; i >= 0; --i) {
-        const float y = box.y + 228.0f + static_cast<float>(i) * 32.0f;
+        const float y = box.y + 288.0f + static_cast<float>(i) * 32.0f;
         ui::label({lx, y, 180.0f, 26.0f}, rows[i].label, text);
         int current = static_cast<int>(*rows[i].policy);
         if (ui::combo({fx, y, 200.0f, 26.0f}, rows[i].policy, policies, &current)) {
             *rows[i].policy = kExportPolicies[std::clamp(current, 0, 2)];
         }
     }
-    ui::label({fx + 212.0f, box.y + 228.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
-    ui::label({fx + 212.0f, box.y + 260.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
+    ui::label({fx + 212.0f, box.y + 288.0f, fw - 212.0f, 24.0f}, "Always: replaced on export", dim);
+    ui::label({fx + 212.0f, box.y + 320.0f, fw - 212.0f, 24.0f}, "If missing: your edits stay", dim);
 
     // Physics (Box2D) in the exported game.
-    const float py = box.y + 380.0f;
+    const float py = box.y + 440.0f;
     DrawLineV({lx, py - 12.0f}, {box.x + box.width - 16.0f, py - 12.0f}, ui::styleColor(LINE_COLOR));
     ui::label({lx, py, 180.0f, 26.0f}, "Physics (Box2D)", text);
     ui::checkbox({fx, py + 3.0f, 20.0f, 20.0f}, &m_settingsPhysics.enabled);
@@ -842,6 +853,9 @@ void Workspace::drawProjectSettingsDialog() {
         m_project.display.height = std::clamp(static_cast<int>(std::lround(m_settingsHeight)), 16, 16384);
         m_project.display.scaleMode = kScaleModes[std::clamp(m_settingsMode, 0, 2)];
         m_project.exportSettings = m_settingsExport;
+        if (m_project.exportSettings.folder.empty()) {
+            m_project.exportSettings.folder = kDefaultExportFolder;
+        }
         m_project.physics = m_settingsPhysics;
         m_project.box2dDir = m_settingsBox2d.empty() ? Project::defaultBox2dDir() : m_settingsBox2d;
         std::string error;

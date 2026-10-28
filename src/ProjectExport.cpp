@@ -20,7 +20,7 @@ std::string upperId(std::string id) {
 } // namespace
 
 std::filesystem::path projectExportDir(const Project& project) {
-    return project.root() / "export";
+    return project.exportPath();
 }
 
 bool exportProject(const Project& project,

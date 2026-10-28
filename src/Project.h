@@ -29,6 +29,8 @@ enum class ExportPolicy { Always, IfMissing, Never };
 inline constexpr ExportPolicy kExportPolicies[] = {ExportPolicy::Always, ExportPolicy::IfMissing, ExportPolicy::Never};
 const char* exportPolicyLabel(ExportPolicy policy); // "Always", "Only if missing", "Never"
 
+inline constexpr const char* kDefaultExportFolder = "export";
+
 // Box2D physics in the exported game. Box2D works in metres; pixelsPerMeter converts scene
 // units. Gravity is in metres per second squared, y down.
 struct PhysicsSettings {
@@ -39,6 +41,8 @@ struct PhysicsSettings {
 };
 
 struct ExportSettings {
+    // Where the project is exported to. Relative paths start at the project folder.
+    std::string folder = kDefaultExportFolder;
     ExportPolicy makefile = ExportPolicy::Always;
     ExportPolicy projectMain = ExportPolicy::Always;    // src/project_main.c
     ExportPolicy vscodeSettings = ExportPolicy::Always; // .vscode/c_cpp_properties.json
@@ -66,6 +70,7 @@ struct Project {
     std::filesystem::path root() const { return file.parent_path(); }
     std::filesystem::path scenesDir() const { return root() / scenesFolder; }
     std::filesystem::path box2dPath() const;
+    std::filesystem::path exportPath() const; // exportSettings.folder, resolved
 
     static std::string defaultBox2dDir();
 };
