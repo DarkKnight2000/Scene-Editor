@@ -226,6 +226,24 @@ void fromJson(const json& j, UILabelComponent& l) {
     read(j, "alignV", l.alignV);
 }
 
+constexpr const char* kDirectionNames[] = {"horizontal", "vertical"};
+
+json toJson(const UILinearLayoutComponent& l) {
+    return {{"direction", kDirectionNames[static_cast<int>(l.direction)]},
+            {"spacing", l.spacing},
+            {"padding", l.padding},
+            {"align", kAlignNames[static_cast<int>(l.align)]}};
+}
+
+void fromJson(const json& j, UILinearLayoutComponent& l) {
+    std::string direction;
+    read(j, "direction", direction);
+    l.direction = direction == kDirectionNames[1] ? LayoutDirection::Vertical : LayoutDirection::Horizontal;
+    read(j, "spacing", l.spacing);
+    read(j, "padding", l.padding);
+    read(j, "align", l.align);
+}
+
 json toJson(const UIRectangleComponent& r) {
     return {{"color", toJson(r.color)}};
 }
@@ -474,6 +492,12 @@ void drawUIRectTransform(Scene& scene, Entity& e, ui::PropertyGrid& grid) {
     // The resulting rectangle on a canvas of the design resolution.
     const Rectangle r = scene.uiRect(e.id, scene.uiReferenceSize());
     const Color dim = ui::styleColor(TEXT_COLOR_DISABLED);
+    if (const Entity* parent = scene.find(e.parent); parent != nullptr && parent->uiLinearLayout) {
+        ui::label(grid.row(""),
+                  parent->uiLinearLayout->direction == LayoutDirection::Horizontal ? "Offset X: set by the parent's layout"
+                                                                                  : "Offset Y: set by the parent's layout",
+                  dim);
+    }
     ui::label(grid.row("At design"), TextFormat("%.0f, %.0f   %.0f x %.0f", r.x, r.y, r.width, r.height), dim, true);
 }
 
@@ -500,6 +524,22 @@ void drawUILabel(Scene&, Entity& e, ui::PropertyGrid& grid) {
     ui::splitHalves(grid.row("Align"), h, v);
     alignCombo(h, l.alignH, {"Left", "Center", "Right"});
     alignCombo(v, l.alignV, {"Top", "Middle", "Bottom"});
+}
+
+void drawUILinearLayout(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    UILinearLayoutComponent& l = *e.uiLinearLayout;
+    int direction = static_cast<int>(l.direction);
+    if (ui::combo(grid.row("Direction"), &l.direction, {"Horizontal", "Vertical"}, &direction)) {
+        l.direction = static_cast<LayoutDirection>(std::clamp(direction, 0, 1));
+    }
+    ui::dragFloat(grid.row("Spacing"), &l.spacing, 0.5f);
+    ui::dragFloat(grid.row("Padding"), &l.padding, 0.5f);
+    if (l.direction == LayoutDirection::Horizontal) {
+        alignCombo(grid.row("Align"), l.align, {"Left", "Center", "Right"});
+    } else {
+        alignCombo(grid.row("Align"), l.align, {"Top", "Middle", "Bottom"});
+    }
+    ui::label(grid.row(""), "Lines up the children in order.", ui::styleColor(TEXT_COLOR_DISABLED));
 }
 
 // A component type for the Entity field `Field` (a std::optional of the component).
@@ -538,6 +578,8 @@ const std::array kTypes{
                                      drawUIRectTransform),
     makeType<&Entity::uiRectangle>("UI Rectangle", "uiRectangle", ICON_WINDOW, true, ComponentScope::UI, drawUIRectangle),
     makeType<&Entity::uiLabel>("UI Label", "uiLabel", ICON_TEXT_A, true, ComponentScope::UI, drawUILabel),
+    makeType<&Entity::uiLinearLayout>("UI Linear Layout", "uiLinearLayout", ICON_VERTICAL_BARS, true, ComponentScope::UI,
+                                      drawUILinearLayout),
 };
 
 } // namespace

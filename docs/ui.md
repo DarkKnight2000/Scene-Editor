@@ -95,6 +95,35 @@ typedef struct SceneUIRectTransform {
 
 You can change `layout` at runtime, e.g. to slide a panel in; the next `update_ui` uses it.
 
+## Linear layouts
+
+Add a **UI Linear Layout** to an element to line up its children, in order, along one axis:
+a toolbar of buttons, a menu, a list. Each child keeps its own size.
+
+| Setting | What it does |
+|---|---|
+| Direction | **Horizontal** (left to right) or **Vertical** (top to bottom) |
+| Spacing | the gap between children, in canvas units |
+| Padding | the gap before the first child and after the last, in canvas units |
+| Align | where the row goes when it's shorter than the element: start, centre or end |
+
+- **Along the axis**, the layout places the children; their offset along it is ignored.
+- **Across the axis**, each child is placed by its own anchors, pivot and offset. Anchor it
+  to the middle to centre it, or stretch it (e.g. anchors (0, 0) → (1, 0) in a vertical list)
+  to fill the element's width.
+- **Children of children** follow their own parent as usual, e.g. a badge on a button.
+
+In the exported code, `_update_ui` lays the children out on their parent, then calls:
+
+```c
+void scene_ui_linear_layout(Rectangle parent, SceneUILinearLayout layout, float scale,
+                            SceneUIElement *const children[], int count);
+```
+
+- **Hiding children:** a child with `visible = false` takes no room, and the others close
+  the gap. Use it to show and hide menu entries at runtime.
+- **The settings** are fixed at export.
+
 ## Labels
 
 ```c

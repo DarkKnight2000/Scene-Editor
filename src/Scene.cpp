@@ -57,6 +57,24 @@ Rectangle layout(Rectangle parent, const UIRectTransformComponent& t) {
     return {f.reference.x + t.position.x - t.pivot.x * w, f.reference.y + t.position.y - t.pivot.y * h, w, h};
 }
 
+// A Linear Layout's children, each already laid out on `parent`: moved one after another
+// along the layout's axis (the same rule as the exported scene_ui_linear_layout).
+void arrange(const UILinearLayoutComponent& l, Rectangle parent, std::vector<Rectangle>& rects) {
+    const bool horizontal = l.direction == LayoutDirection::Horizontal;
+    float total = l.spacing * static_cast<float>(rects.size() > 0 ? rects.size() - 1 : 0);
+    for (const Rectangle& r : rects) {
+        total += horizontal ? r.width : r.height;
+    }
+    const float start = horizontal ? parent.x : parent.y;
+    const float length = horizontal ? parent.width : parent.height;
+    const float fraction = l.align == TextAlign::Start ? 0.0f : l.align == TextAlign::Center ? 0.5f : 1.0f;
+    float at = start + l.padding + (length - 2.0f * l.padding - total) * fraction;
+    for (Rectangle& r : rects) {
+        (horizontal ? r.x : r.y) = at;
+        at += (horizontal ? r.width : r.height) + l.spacing;
+    }
+}
+
 // Solves layout(parent, t) == target for t's position and size (anchors and pivot kept).
 void placeAt(UIRectTransformComponent& t, Rectangle parent, Rectangle target) {
     const AnchorFrame f = anchorFrame(t, parent);
@@ -234,14 +252,32 @@ Rectangle Scene::uiRect(EntityId entity, Vector2 canvasSize) const {
     Rectangle rect{0.0f, 0.0f, canvasSize.x, canvasSize.y};
 
     // Collect the chain up to (not including) the Canvas, then lay it out top-down.
-    const UIRectTransformComponent* chain[kMaxOriginDepth];
+    const Entity* chain[kMaxOriginDepth];
     int count = 0;
     for (const Entity* e = find(entity); count < kMaxOriginDepth && e != nullptr && !isCanvas(e->id) && e->rectTransform;
          e = find(e->parent)) {
-        chain[count++] = &*e->rectTransform;
+        chain[count++] = e;
     }
     for (int i = count - 1; i >= 0; --i) {
-        rect = layout(rect, *chain[i]);
+        const Entity& e = *chain[i];
+        const Entity* parent = find(e.parent);
+        if (parent == nullptr || !parent->rectTransform || !parent->uiLinearLayout) {
+            rect = layout(rect, *e.rectTransform);
+            continue;
+        }
+        // In a Linear Layout: its place depends on the siblings before it.
+        std::vector<Rectangle> rects;
+        std::size_t index = 0;
+        for (const Entity& sibling : m_entities) {
+            if (sibling.parent == parent->id && sibling.rectTransform) {
+                if (sibling.id == e.id) {
+                    index = rects.size();
+                }
+                rects.push_back(layout(rect, *sibling.rectTransform));
+            }
+        }
+        arrange(*parent->uiLinearLayout, rect, rects);
+        rect = rects[index];
     }
     return rect;
 }

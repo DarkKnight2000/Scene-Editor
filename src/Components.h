@@ -136,3 +136,17 @@ struct UILabelComponent {
     TextAlign alignH = TextAlign::Center;
     TextAlign alignV = TextAlign::Center;
 };
+
+enum class LayoutDirection { Horizontal, Vertical };
+
+// Lines up the element's children, in order, along one axis: left to right (Horizontal) or
+// top to bottom (Vertical), `spacing` apart and `padding` in from the element's edges, the
+// whole row placed by `align` (Start = left / top). Each child keeps its own size and its own
+// place across the axis (its anchors, pivot and offset); its offset along the axis is ignored.
+// Canvas units, like the rest of the UI.
+struct UILinearLayoutComponent {
+    LayoutDirection direction = LayoutDirection::Horizontal;
+    float spacing = 8.0f;
+    float padding = 0.0f;
+    TextAlign align = TextAlign::Start;
+};

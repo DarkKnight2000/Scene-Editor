@@ -76,12 +76,15 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `SceneTextAlign` | `SCENE_ALIGN_START`, `SCENE_ALIGN_CENTER`, `SCENE_ALIGN_END` |
 | `SceneUILabel` | `text`, `font_size`, `spacing`, `align_h`, `align_v`, `color` |
 | `SceneUIElement` | `layout`, `rect` (window pixels), `color`, `label`, `visible` |
+| `SceneUIDirection` | `SCENE_UI_HORIZONTAL`, `SCENE_UI_VERTICAL` |
+| `SceneUILinearLayout` | `direction`, `spacing`, `padding` (canvas units), `align` |
 
 | | |
 |---|---|
 | `Rectangle scene_ui_layout(Rectangle parent, SceneUIRectTransform layout, float scale)` | the layout rule |
 | `void scene_draw_ui_label(SceneUILabel label, Rectangle rect, float ui_scale, Font font)` | |
 | `void scene_draw_ui_text(Font font, const char *text, Rectangle rect, float font_size, float spacing, SceneTextAlign align_h, SceneTextAlign align_v, Color color)` | aligned text, pixel sizes |
+| `void scene_ui_linear_layout(Rectangle parent, SceneUILinearLayout layout, float scale, SceneUIElement *const children[], int count)` | lines `children` up along the layout's axis; hidden ones take no room |
 
 ## Physics (when `SCENE_PHYSICS` is 1)
 

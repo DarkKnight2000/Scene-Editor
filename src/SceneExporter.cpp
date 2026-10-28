@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -529,16 +530,41 @@ typedef struct {{type}} {
     }
 
     if (info.hasUI) {
-        // Layout, parents first; then drawing in the same order.
+        // Layout, parents first: an element's children together, then a Linear Layout lines
+        // them up, then their own children. Drawing is in tree order.
+        std::unordered_map<const Entity*, std::vector<const Entity*>> childrenOf; // nullptr: the Canvas
+        for (const Entity* e : ui) {
+            childrenOf[parentOf(e)].push_back(e);
+        }
         c << "\nvoid " << prefix << "_update_ui(" << type << " *s) {\n"
           << "    s->ui_canvas = scene_ui_canvas();\n"
           << "    s->ui_scale = scene_ui_scale(s->ui_canvas);\n";
-        for (const Entity* e : ui) {
-            const Entity* p = parentOf(e);
-            c << "    " << ref(e) << ".rect = scene_ui_layout("
-              << (p == nullptr ? std::string("s->ui_canvas") : ref(p) + ".rect") << ", " << ref(e)
-              << ".layout, s->ui_scale);\n";
-        }
+        const std::function<void(const Entity*)> layoutChildren = [&](const Entity* parent) {
+            const auto it = childrenOf.find(parent);
+            if (it == childrenOf.end()) {
+                return;
+            }
+            const std::string parentRect = parent == nullptr ? std::string("s->ui_canvas") : ref(parent) + ".rect";
+            for (const Entity* e : it->second) {
+                c << "    " << ref(e) << ".rect = scene_ui_layout(" << parentRect << ", " << ref(e)
+                  << ".layout, s->ui_scale);\n";
+            }
+            if (parent != nullptr && parent->uiLinearLayout) {
+                const UILinearLayoutComponent& l = *parent->uiLinearLayout;
+                c << "    {\n        SceneUIElement *const children[] = {";
+                for (std::size_t i = 0; i < it->second.size(); ++i) {
+                    c << (i > 0 ? ", " : "") << "&" << ref(it->second[i]);
+                }
+                c << "};\n        scene_ui_linear_layout(" << parentRect << ", (SceneUILinearLayout){"
+                  << (l.direction == LayoutDirection::Vertical ? "SCENE_UI_VERTICAL" : "SCENE_UI_HORIZONTAL") << ", "
+                  << floatLiteral(l.spacing) << ", " << floatLiteral(l.padding) << ", " << alignConstant(l.align)
+                  << "}, s->ui_scale, children, " << it->second.size() << ");\n    }\n";
+            }
+            for (const Entity* e : it->second) {
+                layoutChildren(e);
+            }
+        };
+        layoutChildren(nullptr);
         c << "}\n";
 
         c << "\nvoid " << prefix << "_draw_ui(" << type << " *s) {\n";
@@ -1031,6 +1057,24 @@ void scene_draw_ui_label(SceneUILabel label, Rectangle rect, float ui_scale, Fon
 void scene_draw_ui_text(Font font, const char *text, Rectangle rect, float font_size, float spacing,
                         SceneTextAlign align_h, SceneTextAlign align_v, Color color);
 
+typedef enum SceneUIDirection {
+    SCENE_UI_HORIZONTAL, /* left to right */
+    SCENE_UI_VERTICAL    /* top to bottom */
+} SceneUIDirection;
+
+/* A UI Linear Layout: lines up an element's children along one axis. Canvas units. */
+typedef struct SceneUILinearLayout {
+    SceneUIDirection direction;
+    float spacing;        /* between children */
+    float padding;        /* in from the parent's edges, along the axis */
+    SceneTextAlign align; /* where the row goes along the axis: start = left / top */
+} SceneUILinearLayout;
+
+/* Moves `children` (laid out on `parent` already) one after another along the layout's
+   axis, keeping their sizes and their places across it. Hidden children take no room. */
+void scene_ui_linear_layout(Rectangle parent, SceneUILinearLayout layout, float scale, SceneUIElement *const children[],
+                            int count);
+
 #if SCENE_PHYSICS
 /* ----- Physics: Box2D works in metres, in the World's own space ----- */
 
@@ -1188,6 +1232,41 @@ void scene_draw_ui_text(Font font, const char *text, Rectangle rect, float font_
         }
         text += n + 1;
         y += line_height;
+    }
+}
+
+void scene_ui_linear_layout(Rectangle parent, SceneUILinearLayout layout, float scale, SceneUIElement *const children[],
+                            int count) {
+    const bool horizontal = layout.direction == SCENE_UI_HORIZONTAL;
+    const float spacing = layout.spacing * scale;
+    const float padding = layout.padding * scale;
+    float total = 0.0f;
+    float at;
+    int shown = 0;
+    int i;
+    for (i = 0; i < count; ++i) {
+        if (children[i]->visible) {
+            total += horizontal ? children[i]->rect.width : children[i]->rect.height;
+            ++shown;
+        }
+    }
+    if (shown > 1) {
+        total += spacing * (float)(shown - 1);
+    }
+    at = (horizontal ? parent.x : parent.y) + padding +
+         ((horizontal ? parent.width : parent.height) - 2.0f * padding - total) * align_fraction(layout.align);
+    for (i = 0; i < count; ++i) {
+        Rectangle *r = &children[i]->rect;
+        if (!children[i]->visible) {
+            continue;
+        }
+        if (horizontal) {
+            r->x = at;
+            at += r->width + spacing;
+        } else {
+            r->y = at;
+            at += r->height + spacing;
+        }
     }
 }
 

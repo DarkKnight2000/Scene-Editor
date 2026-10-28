@@ -1,0 +1,505 @@
+{
+  "format": "SceneEditor.scene",
+  "version": 1,
+  "entities": [
+    {
+      "id": 0,
+      "name": "World",
+      "world": true,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
+      "name": "Toolbar",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.5,
+            0.0
+          ],
+          "anchorMax": [
+            0.5,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.0
+          ],
+          "position": [
+            0.0,
+            20.0
+          ],
+          "size": [
+            640.0,
+            80.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            40,
+            44,
+            52,
+            230
+          ]
+        },
+        "uiLinearLayout": {
+          "direction": "horizontal",
+          "spacing": 12.0,
+          "padding": 12.0,
+          "align": "center"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Play",
+      "origin": 2,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.5
+          ],
+          "anchorMax": [
+            0.0,
+            0.5
+          ],
+          "pivot": [
+            0.0,
+            0.5
+          ],
+          "position": [
+            999.0,
+            0.0
+          ],
+          "size": [
+            120.0,
+            56.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            70,
+            150,
+            80,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "Play",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Options",
+      "origin": 2,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.5
+          ],
+          "anchorMax": [
+            0.0,
+            0.5
+          ],
+          "pivot": [
+            0.0,
+            0.5
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            160.0,
+            56.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            90,
+            110,
+            200,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "Options",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "Badge",
+      "origin": 4,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            1.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            20.0,
+            20.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            220,
+            60,
+            60,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "Quit",
+      "origin": 2,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.5
+          ],
+          "anchorMax": [
+            0.0,
+            0.5
+          ],
+          "pivot": [
+            0.0,
+            0.5
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            120.0,
+            56.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            180,
+            70,
+            70,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "Quit",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "Menu",
+      "origin": 1,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.5
+          ],
+          "anchorMax": [
+            0.0,
+            0.5
+          ],
+          "pivot": [
+            0.0,
+            0.5
+          ],
+          "position": [
+            24.0,
+            0.0
+          ],
+          "size": [
+            240.0,
+            400.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            40,
+            44,
+            52,
+            230
+          ]
+        },
+        "uiLinearLayout": {
+          "direction": "vertical",
+          "spacing": 8.0,
+          "padding": 10.0,
+          "align": "start"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "New game",
+      "origin": 7,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.0
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            -20.0,
+            48.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            70,
+            80,
+            120,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "New game",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "Continue",
+      "origin": 7,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.0
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            -20.0,
+            48.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            100,
+            80,
+            120,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "Continue",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "Settings",
+      "origin": 7,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.0
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            -20.0,
+            48.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            130,
+            80,
+            120,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "Settings",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "Credits",
+      "origin": 7,
+      "components": {
+        "uiRectTransform": {
+          "anchorMin": [
+            0.0,
+            0.0
+          ],
+          "anchorMax": [
+            1.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.0
+          ],
+          "position": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            -20.0,
+            48.0
+          ]
+        },
+        "uiRectangle": {
+          "color": [
+            160,
+            80,
+            120,
+            255
+          ]
+        },
+        "uiLabel": {
+          "text": "Credits",
+          "fontSize": 24.0,
+          "spacing": 2.0,
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "alignH": "center",
+          "alignV": "center"
+        }
+      }
+    }
+  ]
+}

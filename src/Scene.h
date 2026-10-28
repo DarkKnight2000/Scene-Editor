@@ -35,6 +35,7 @@ struct Entity {
     std::optional<UIRectTransformComponent> rectTransform;
     std::optional<UIRectangleComponent> uiRectangle;
     std::optional<UILabelComponent> uiLabel;
+    std::optional<UILinearLayoutComponent> uiLinearLayout;
 };
 
 // One entry of the entity tree, in display order.

@@ -28,7 +28,8 @@ well, while staying out of the main game code.
   you each entity's final `pose` and its collider, ready for your own drawing or level
   generation.
 - **UI that fits any screen:** UI elements anchored to the screen's corners, edges or
-  centre, or stretched along them. Preview other screen shapes (16:10, 21:9, 4:3,
+  centre, or stretched along them, and linear layouts that line up toolbars and menus.
+  Preview other screen shapes (16:10, 21:9, 4:3,
   portrait...) right in the editor. In the game, each element has a `rect` in window
   pixels to draw your own widgets into.
 - **Scaling:** design for one resolution; the game fits it to any window with the scale
