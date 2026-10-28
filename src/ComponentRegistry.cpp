@@ -119,13 +119,29 @@ void fromJson(const json& j, SpriteComponent& s) {
     read(j, "export", s.exported); // missing in older files: exported
 }
 
-json toJson(const BoxColliderComponent& c) {
-    return {{"offset", toJson(c.offset)}, {"size", toJson(c.size)},     {"isTrigger", c.isTrigger},
-            {"density", c.density},       {"friction", c.friction}, {"restitution", c.restitution}};
+constexpr const char* kColliderShapeNames[] = {"box", "circle", "triangle"};
+
+json toJson(const ColliderComponent& c) {
+    return {{"shape", kColliderShapeNames[static_cast<int>(c.shape)]},
+            {"offset", toJson(c.offset)},
+            {"size", toJson(c.size)},
+            {"radius", c.radius},
+            {"isTrigger", c.isTrigger},
+            {"density", c.density},
+            {"friction", c.friction},
+            {"restitution", c.restitution}};
 }
 
-void fromJson(const json& j, BoxColliderComponent& c) {
+void fromJson(const json& j, ColliderComponent& c) {
+    std::string shape;
+    read(j, "shape", shape); // missing in older files (box colliders): a box
+    for (int i = 0; i < 3; ++i) {
+        if (shape == kColliderShapeNames[i]) {
+            c.shape = static_cast<ColliderShape>(i);
+        }
+    }
     read(j, "offset", c.offset);
+    read(j, "radius", c.radius);
     read(j, "size", c.size);
     read(j, "isTrigger", c.isTrigger);
     read(j, "density", c.density);
@@ -303,10 +319,19 @@ void drawSprite(Scene&, Entity& e, ui::PropertyGrid& grid) {
               s.exported ? "to the C code" : "designer only", ui::styleColor(TEXT_COLOR_DISABLED));
 }
 
-void drawBoxCollider(Scene&, Entity& e, ui::PropertyGrid& grid) {
-    BoxColliderComponent& c = *e.boxCollider;
+void drawCollider(Scene&, Entity& e, ui::PropertyGrid& grid) {
+    ColliderComponent& c = *e.collider;
+    int shape = static_cast<int>(c.shape);
+    if (ui::combo(grid.row("Shape"), &c.shape, {"Box", "Circle", "Triangle"}, &shape)) {
+        c.shape = static_cast<ColliderShape>(std::clamp(shape, 0, 2));
+    }
     vec2Row(grid, "Offset", c.offset, 0.5f);
-    vec2Row(grid, "Size", c.size, 0.5f);
+    if (c.shape == ColliderShape::Circle) {
+        ui::dragFloat(grid.row("Radius"), &c.radius, 0.5f);
+        c.radius = std::max(c.radius, 0.0f);
+    } else {
+        vec2Row(grid, "Size", c.size, 0.5f);
+    }
     ui::checkbox(grid.row("Is Trigger"), &c.isTrigger);
     // Physics material (Box2D): used by the exported game when physics is on.
     ui::dragFloat(grid.row("Density"), &c.density, 0.01f);
@@ -334,8 +359,8 @@ void drawRigidbody(Scene&, Entity& e, ui::PropertyGrid& grid) {
     r.angularDamping = std::max(r.angularDamping, 0.0f);
     ui::checkbox(grid.row("Fixed Rot."), &r.fixedRotation);
     ui::checkbox(grid.row("Bullet"), &r.isBullet);
-    if (!e.boxCollider) {
-        ui::label(grid.row(""), "Add a Box Collider to give it a shape.", ui::styleColor(TEXT_COLOR_DISABLED));
+    if (!e.collider) {
+        ui::label(grid.row(""), "Add a Collider to give it a shape.", ui::styleColor(TEXT_COLOR_DISABLED));
     }
 }
 
@@ -364,8 +389,8 @@ void drawPlatformer(Scene&, Entity& e, ui::PropertyGrid& grid) {
     } else if (!e.rigidbody->fixedRotation) {
         ui::label(grid.row(""), "Tip: turn on Fixed Rot. in the Rigidbody.", ui::styleColor(TEXT_COLOR_DISABLED));
     }
-    if (!e.boxCollider) {
-        ui::label(grid.row(""), "Needs a Box Collider to stand on things.", ui::styleColor(TEXT_COLOR_DISABLED));
+    if (!e.collider) {
+        ui::label(grid.row(""), "Needs a Collider to stand on things.", ui::styleColor(TEXT_COLOR_DISABLED));
     }
     ui::label(grid.row(""), "Keys: A / D or arrows, Space / W / Up", ui::styleColor(TEXT_COLOR_DISABLED));
 }
@@ -504,8 +529,8 @@ constexpr ComponentType makeType(const char* name, const char* key, int icon, bo
 const std::array kTypes{
     makeType<&Entity::transform>("Transform", "transform", ICON_CURSOR_MOVE, false, ComponentScope::World, drawTransform),
     makeType<&Entity::sprite>("Sprite", "sprite", ICON_FILETYPE_IMAGE, true, ComponentScope::World, drawSprite),
-    makeType<&Entity::boxCollider>("Box Collider", "boxCollider", ICON_BOX_CORNERS_BIG, true, ComponentScope::World,
-                                   drawBoxCollider),
+    makeType<&Entity::collider>("Collider", "collider", ICON_BOX_CORNERS_BIG, true, ComponentScope::World,
+                                drawCollider),
     makeType<&Entity::rigidbody>("Rigidbody", "rigidbody", ICON_PLAYER_JUMP, true, ComponentScope::World, drawRigidbody),
     makeType<&Entity::platformer>("Platformer Controller", "platformer", ICON_PLAYER, true, ComponentScope::World,
                                   drawPlatformer),

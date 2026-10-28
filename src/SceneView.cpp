@@ -195,6 +195,33 @@ void drawTriangleAnyOrder(Vector2 a, Vector2 b, Vector2 c, Color color) {
     DrawTriangle(a, b, c, color);
 }
 
+// A collider's outline: the same shape the exported game gives Box2D.
+void drawColliderLines(const Pose& pose, const ColliderComponent& c, float thickness, Color color) {
+    const Vector2 centre = spriteToScene(pose, c.offset);
+    const float hw = c.size.x / 2.0f;
+    const float hh = c.size.y / 2.0f;
+    switch (c.shape) {
+    case ColliderShape::Circle: {
+        const float r = c.radius * std::max(std::fabs(pose.scale.x), std::fabs(pose.scale.y));
+        DrawRing(centre, std::max(r - thickness / 2.0f, 0.0f), r + thickness / 2.0f, 0.0f, 360.0f, 48, color);
+        break;
+    }
+    case ColliderShape::Triangle: {
+        const Vector2 tip = spriteToScene(pose, {c.offset.x, c.offset.y - hh});
+        const Vector2 left = spriteToScene(pose, {c.offset.x - hw, c.offset.y + hh});
+        const Vector2 right = spriteToScene(pose, {c.offset.x + hw, c.offset.y + hh});
+        DrawLineEx(tip, left, thickness, color);
+        DrawLineEx(left, right, thickness, color);
+        DrawLineEx(right, tip, thickness, color);
+        break;
+    }
+    case ColliderShape::Box:
+        drawRotatedRectLines(centre, {hw * std::fabs(pose.scale.x), hh * std::fabs(pose.scale.y)}, pose.rotation,
+                             thickness, color);
+        break;
+    }
+}
+
 // The same shapes the exported scene_draw draws.
 void drawSprite(const Pose& pose, const SpriteComponent& sprite) {
     const float hw = sprite.size.x / 2.0f;
@@ -437,12 +464,8 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, EntityId selected, 
         } else {
             drawMarker(pose.position, kMarkerColor, px);
         }
-        if (const auto& collider = e.boxCollider) {
-            const Vector2 offset = Vector2Rotate(Vector2Multiply(collider->offset, pose.scale), pose.rotation * DEG2RAD);
-            const Vector2 half{collider->size.x * std::fabs(pose.scale.x) / 2.0f,
-                               collider->size.y * std::fabs(pose.scale.y) / 2.0f};
-            drawRotatedRectLines(Vector2Add(pose.position, offset), half, pose.rotation, 1.5f * px,
-                                 collider->isTrigger ? kTriggerColor : kColliderColor);
+        if (const auto& collider = e.collider) {
+            drawColliderLines(pose, *collider, 1.5f * px, collider->isTrigger ? kTriggerColor : kColliderColor);
         }
     }
 

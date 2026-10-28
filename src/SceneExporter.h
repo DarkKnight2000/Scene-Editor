@@ -69,7 +69,7 @@ struct ExportedScene {
     bool hasUI = false;                 // has _update_ui / _draw_ui
     bool hasBodies = false;             // has _step / _deinit
     std::vector<std::string> entities;  // entity fields, in drawing order
-    std::vector<std::string> colliders; // fields of entities with a box collider
+    std::vector<std::string> colliders; // fields of entities with a collider
     std::vector<std::string> elements;  // UI element fields, parents first
     std::set<EntityFields> entityTypes; // the entity struct types it uses
 };

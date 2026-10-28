@@ -73,8 +73,8 @@ std::string debugScenes(const std::vector<ExportedScene>& scenes) {
         if (!s.colliders.empty()) {
             colliders << "    case SCENE_ID_" << upperId(s.id) << ":\n";
             for (const std::string& e : s.colliders) {
-                colliders << "        draw_box(scene_box(" << scene << "." << e << ".pose, " << scene << "." << e
-                          << ".collider.offset, " << scene << "." << e << ".collider.size), color);\n";
+                colliders << "        draw_collider(" << scene << "." << e << ".pose, " << scene << "." << e
+                          << ".collider, color);\n";
             }
             colliders << "        break;\n";
         }
@@ -113,6 +113,39 @@ static void draw_box(SceneBox box, Color color) {
     }
 }
 
+/* A point of a collider (before scaling, from the entity's position) in the scene. */
+static Vector2 collider_point(ScenePose pose, float x, float y) {
+    const float c = cosf(pose.rotation * DEG2RAD);
+    const float s = sinf(pose.rotation * DEG2RAD);
+    x *= pose.scale.x;
+    y *= pose.scale.y;
+    return (Vector2){pose.position.x + x * c - y * s, pose.position.y + x * s + y * c};
+}
+
+static void draw_collider(ScenePose pose, SceneCollider collider, Color color) {
+    const Vector2 o = collider.offset;
+    const float hw = collider.size.x / 2.0f;
+    const float hh = collider.size.y / 2.0f;
+    switch (collider.shape) {
+    case SCENE_COLLIDER_CIRCLE:
+        DrawCircleLinesV(collider_point(pose, o.x, o.y),
+                         collider.radius * fmaxf(fabsf(pose.scale.x), fabsf(pose.scale.y)), color);
+        break;
+    case SCENE_COLLIDER_TRIANGLE: {
+        const Vector2 tip = collider_point(pose, o.x, o.y - hh);
+        const Vector2 left = collider_point(pose, o.x - hw, o.y + hh);
+        const Vector2 right = collider_point(pose, o.x + hw, o.y + hh);
+        DrawLineEx(tip, left, 2.0f, color);
+        DrawLineEx(left, right, 2.0f, color);
+        DrawLineEx(right, tip, 2.0f, color);
+        break;
+    }
+    case SCENE_COLLIDER_BOX:
+        draw_box(scene_box(pose, o, collider.size), color);
+        break;
+    }
+}
+
 int debug_check(const SceneManager *m) {
     int bad = 0;
 )" + check.str() + R"(    (void)m;
@@ -125,7 +158,7 @@ void debug_draw_colliders(const SceneManager *m, Color color) {
     switch (m->current) {
 )" + colliders.str() + R"(    default: break;
     }
-    (void)draw_box;
+    (void)draw_collider;
     (void)color;
 }
 )";

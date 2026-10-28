@@ -28,7 +28,7 @@ struct Entity {
 
     std::optional<TransformComponent> transform;
     std::optional<SpriteComponent> sprite;
-    std::optional<BoxColliderComponent> boxCollider;
+    std::optional<ColliderComponent> collider;
     std::optional<RigidbodyComponent> rigidbody;
     std::optional<PlatformerControllerComponent> platformer;
 

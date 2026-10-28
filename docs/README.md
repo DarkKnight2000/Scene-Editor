@@ -10,7 +10,7 @@ placements and draws its own things there, and the scene scales to any window.
 |---|---|
 | [Getting started](getting-started.md) | The export folder, building with the Makefile, the command line, VS Code |
 | [Scenes and the SceneManager](scenes.md) | Scene structs, their functions, switching between scenes |
-| [Entities](entities.md) | Transforms, poses, sprites, collider boxes: drawing your own things in the scene |
+| [Entities](entities.md) | Transforms, poses, sprites, colliders: drawing your own things in the scene |
 | [Screen scaling](scaling.md) | Design resolution, Expand / Fit / Fill, mouse to scene coordinates |
 | [UI](ui.md) | The Canvas, anchors, element rects for your own widgets, labels |
 | [Physics](physics.md) | Box2D bodies from colliders and rigidbodies |

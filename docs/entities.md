@@ -16,11 +16,11 @@ need, named after them. `scene_common.h` has one for each combination the projec
 | Type name has | Fields | From |
 |---|---|---|
 | `Sprite` | `sprite`, `visible` | a sprite (with **Export** ticked) |
-| `Collider` | `collider` | a box collider |
-| `Body` | `body` | a rigidbody or a box collider, with physics on |
+| `Collider` | `collider` | a collider |
+| `Body` | `body` | a rigidbody or a collider, with physics on |
 | `Platformer` | `platformer` | a platformer controller (see [Physics](physics.md)) |
 
-For example, a sprite with a box collider, with physics on:
+For example, a sprite with a collider, with physics on:
 
 ```c
 typedef struct SceneSpriteColliderBodyEntity {
@@ -32,7 +32,7 @@ typedef struct SceneSpriteColliderBodyEntity {
         };
     };
     SceneSprite sprite;
-    SceneBoxCollider collider;
+    SceneCollider collider;
     b2BodyId body;
     bool visible; /* false: its sprite isn't drawn */
 } SceneSpriteColliderBodyEntity;
@@ -107,10 +107,18 @@ triangle) is fixed at export. It's centred on the entity's position and scaled w
 `scene_draw_rectangle`, `scene_draw_circle` and `scene_draw_triangle` draw any sprite at any
 pose.
 
-## Collider boxes
+## Colliders
 
-A box collider is a box at `offset` from the entity's position, before scaling.
-`scene_box()` places it in the scene:
+A collider is a box, a circle or a triangle, centred at `offset` from the entity's
+position (before scaling). Its `shape` says which:
+
+| `shape` | Uses | Placed |
+|---|---|---|
+| `SCENE_COLLIDER_BOX` | `size` | scaled with the entity |
+| `SCENE_COLLIDER_TRIANGLE` | `size` | in that box, its tip at the top centre (like a triangle sprite) |
+| `SCENE_COLLIDER_CIRCLE` | `radius` | times the larger of the entity's scales, so it stays round |
+
+`scene_box()` places a box collider (or the box around a triangle) in the scene:
 
 ```c
 typedef struct SceneBox {

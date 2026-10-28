@@ -196,6 +196,15 @@ const char* shapeName(SpriteShape shape) {
     return "rectangle";
 }
 
+const char* colliderShapeConstant(ColliderShape shape) {
+    switch (shape) {
+    case ColliderShape::Circle: return "SCENE_COLLIDER_CIRCLE";
+    case ColliderShape::Triangle: return "SCENE_COLLIDER_TRIANGLE";
+    case ColliderShape::Box: break;
+    }
+    return "SCENE_COLLIDER_BOX";
+}
+
 const char* bodyTypeConstant(BodyType type) {
     switch (type) {
     case BodyType::Kinematic: return "b2_kinematicBody";
@@ -281,7 +290,7 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     std::vector<const Entity*> bodies;
     if (physics) {
         for (const Entity* e : drawn) {
-            if (e->rigidbody || e->boxCollider) {
+            if (e->rigidbody || e->collider) {
                 bodies.push_back(e);
             }
         }
@@ -296,8 +305,8 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     };
     const auto fieldsOf = [&](const Entity* e) {
         return EntityFields{.sprite = e->sprite && e->sprite->exported,
-                            .collider = e->boxCollider.has_value(),
-                            .body = physics && (e->rigidbody || e->boxCollider),
+                            .collider = e->collider.has_value(),
+                            .body = physics && (e->rigidbody || e->collider),
                             .platformer = hasPlatformer(e)};
     };
 
@@ -312,7 +321,7 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     for (const Entity* e : drawn) {
         info.entities.push_back(field.at(e->id));
         info.entityTypes.insert(fieldsOf(e));
-        if (e->boxCollider) {
+        if (e->collider) {
             info.colliders.push_back(field.at(e->id));
         }
     }
@@ -401,8 +410,13 @@ typedef struct {{type}} {
         if (const auto& sprite = e->sprite; sprite && sprite->exported) {
             c << ", .sprite = {" << pair(sprite->size) << ", " << rgba(sprite->tint) << "}, .visible = true";
         }
-        if (const auto& col = e->boxCollider) {
-            c << ", .collider = {.offset = " << pair(col->offset) << ", .size = " << pair(col->size);
+        if (const auto& col = e->collider) {
+            c << ", .collider = {.shape = " << colliderShapeConstant(col->shape) << ", .offset = " << pair(col->offset);
+            if (col->shape == ColliderShape::Circle) {
+                c << ", .radius = " << floatLiteral(col->radius);
+            } else {
+                c << ", .size = " << pair(col->size);
+            }
             if (col->isTrigger) {
                 c << ", .is_trigger = true";
             }
@@ -442,7 +456,7 @@ typedef struct {{type}} {
                 needed.insert(a);
             }
         }
-        c << "\n    /* Physics: a body for each entity with a rigidbody or a box collider. */\n"
+        c << "\n    /* Physics: a body for each entity with a rigidbody or a collider. */\n"
           << "    s->physics_world = scene_physics_create_world();\n"
           << "    {\n";
         for (const Entity* e : tree) {
@@ -478,8 +492,8 @@ typedef struct {{type}} {
                 }
             }
             c << "        " << ref(e) << ".body = b2CreateBody(s->physics_world, &def);\n";
-            if (e->boxCollider) {
-                c << "        scene_add_box_collider(" << ref(e) << ".body, " << pose << ".scale, " << ref(e)
+            if (e->collider) {
+                c << "        scene_add_collider(" << ref(e) << ".body, " << pose << ".scale, " << ref(e)
                   << ".collider, &" << ref(e) << ".entity);\n";
             }
         }
@@ -802,7 +816,7 @@ std::string entityTypeCode(EntityFields fields) {
         code += "    SceneSprite sprite;\n";
     }
     if (fields.collider) {
-        code += "    SceneBoxCollider collider;\n";
+        code += "    SceneCollider collider;\n";
     }
     if (fields.body) {
         code += "    b2BodyId body;\n";
@@ -903,17 +917,25 @@ typedef struct SceneSprite {
     Color tint;
 } SceneSprite;
 
-typedef struct SceneBoxCollider {
-    Vector2 offset; /* from the entity's position, before scaling */
-    Vector2 size;
+typedef enum SceneColliderShape {
+    SCENE_COLLIDER_BOX,
+    SCENE_COLLIDER_CIRCLE,  /* radius times the larger of the entity's scales: stays round */
+    SCENE_COLLIDER_TRIANGLE /* in the box `size`, its tip at the top centre */
+} SceneColliderShape;
+
+typedef struct SceneCollider {
+    SceneColliderShape shape;
+    Vector2 offset; /* its centre, from the entity's position, before scaling */
+    Vector2 size;   /* box and triangle */
+    float radius;   /* circle */
     bool is_trigger;
     float density;
     float friction;
     float restitution;
-} SceneBoxCollider;
+} SceneCollider;
 
 #if SCENE_PHYSICS
-/* A player-controlled platformer character (a dynamic body with a box collider): moves
+/* A player-controlled platformer character (a dynamic body with a collider): moves
    left / right and jumps. Speeds and heights in scene units.
      coyote time  a jump still works for a moment after leaving a ledge
      jump buffer  a jump pressed just before landing happens on landing
@@ -962,7 +984,7 @@ typedef struct SceneBox {
 /* Where a child with local transform `t` ends up. */
 ScenePose scene_child_pose(ScenePose parent, SceneTransform t);
 
-/* A box of `size` at `offset` from an entity at `pose`, e.g. its collider:
+/* A box of `size` at `offset` from an entity at `pose`, e.g. its box collider:
    scene_box(e.pose, e.collider.offset, e.collider.size). */
 SceneBox scene_box(ScenePose pose, Vector2 offset, Vector2 size);
 
@@ -1018,7 +1040,7 @@ Vector2 scene_to_scene_units(b2Vec2 m);
 /* Used by the generated scenes. */
 b2WorldId scene_physics_create_world(void);
 b2BodyDef scene_body_def(ScenePose pose, b2BodyType type, SceneEntity *entity);
-void scene_add_box_collider(b2BodyId body, Vector2 scale, SceneBoxCollider collider, SceneEntity *entity);
+void scene_add_collider(b2BodyId body, Vector2 scale, SceneCollider collider, SceneEntity *entity);
 void scene_physics_advance(b2WorldId world, float *time, float dt);
 void scene_body_to_entity(b2BodyId body, SceneEntity *entity, ScenePose parent);
 
@@ -1195,11 +1217,14 @@ b2BodyDef scene_body_def(ScenePose pose, b2BodyType type, SceneEntity *entity) {
     return def;
 }
 
-void scene_add_box_collider(b2BodyId body, Vector2 scale, SceneBoxCollider collider, SceneEntity *entity) {
-    const Vector2 centre = {collider.offset.x * scale.x, collider.offset.y * scale.y};
-    const b2Polygon box = b2MakeOffsetBox(collider.size.x * fabsf(scale.x) / 2.0f / SCENE_PIXELS_PER_METER,
-                                          collider.size.y * fabsf(scale.y) / 2.0f / SCENE_PIXELS_PER_METER,
-                                          scene_to_meters(centre), b2Rot_identity);
+/* A point of the collider (before scaling, from the entity's position) in the body, in metres. */
+static b2Vec2 collider_point(Vector2 scale, float x, float y) {
+    return scene_to_meters((Vector2){x * scale.x, y * scale.y});
+}
+
+void scene_add_collider(b2BodyId body, Vector2 scale, SceneCollider collider, SceneEntity *entity) {
+    const float hw = collider.size.x / 2.0f;
+    const float hh = collider.size.y / 2.0f;
     b2ShapeDef shape = b2DefaultShapeDef();
     shape.density = collider.density;
     shape.material.friction = collider.friction;
@@ -1208,7 +1233,33 @@ void scene_add_box_collider(b2BodyId body, Vector2 scale, SceneBoxCollider colli
     shape.enableSensorEvents = true;
     shape.enableContactEvents = true;
     shape.userData = entity;
-    b2CreatePolygonShape(body, &shape, &box);
+    switch (collider.shape) {
+    case SCENE_COLLIDER_CIRCLE: {
+        const float scale_max = fmaxf(fabsf(scale.x), fabsf(scale.y));
+        const b2Circle circle = {collider_point(scale, collider.offset.x, collider.offset.y),
+                                 collider.radius * scale_max / SCENE_PIXELS_PER_METER};
+        b2CreateCircleShape(body, &shape, &circle);
+        break;
+    }
+    case SCENE_COLLIDER_TRIANGLE: {
+        const b2Vec2 points[3] = {collider_point(scale, collider.offset.x, collider.offset.y - hh),
+                                  collider_point(scale, collider.offset.x - hw, collider.offset.y + hh),
+                                  collider_point(scale, collider.offset.x + hw, collider.offset.y + hh)};
+        const b2Hull hull = b2ComputeHull(points, 3);
+        if (hull.count == 3) { /* not a flat triangle */
+            const b2Polygon triangle = b2MakePolygon(&hull, 0.0f);
+            b2CreatePolygonShape(body, &shape, &triangle);
+        }
+        break;
+    }
+    case SCENE_COLLIDER_BOX: {
+        const b2Polygon box = b2MakeOffsetBox(hw * fabsf(scale.x) / SCENE_PIXELS_PER_METER,
+                                              hh * fabsf(scale.y) / SCENE_PIXELS_PER_METER,
+                                              collider_point(scale, collider.offset.x, collider.offset.y), b2Rot_identity);
+        b2CreatePolygonShape(body, &shape, &box);
+        break;
+    }
+    }
 }
 
 /* Fixed steps of 1/60 s for the time passed (at most a quarter second's worth). */

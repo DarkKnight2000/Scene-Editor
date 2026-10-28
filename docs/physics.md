@@ -11,10 +11,10 @@ Box2D is exported or compiled, and rigidbodies are left out of the export.
 
 | You add | The entity becomes |
 |---|---|
-| Box Collider only | a **static** body (ground, walls) |
-| Rigidbody + Box Collider | a body of the Rigidbody's type, shaped like the collider |
+| Collider only | a **static** body (ground, walls) |
+| Rigidbody + Collider | a body of the Rigidbody's type, shaped like the collider |
 | Rigidbody only | a body without a shape (it falls, but touches nothing) |
-| Box Collider with *Is Trigger* | a **sensor**: reports overlaps, doesn't collide |
+| Collider with *Is Trigger* | a **sensor**: reports overlaps, doesn't collide |
 
 **Rigidbody:**
 
@@ -27,7 +27,9 @@ Box2D is exported or compiled, and rigidbodies are left out of the export.
 - **Fixed rotation:** the body never turns, as for a platformer character.
 - **Bullet:** continuous collision, for fast objects.
 
-**Box Collider:** besides its size and offset, it has a **density** in kg per square
+**Collider:** a **Box**, **Circle** or **Triangle** shape (see
+[Entities](entities.md#colliders)). Besides its size (a radius for a circle) and offset, it
+has a **density** in kg per square
 metre (default 1), a **friction** (default 0.6) and a **restitution** (bounciness from
 0 to 1, default 0).
 
@@ -44,7 +46,7 @@ that's roughly 6 to 640 pixels.
 ## Bodies in the exported scene
 
 `scene_<name>_init` creates the scene's Box2D world (`physics_world`) and a body for every
-entity with a rigidbody or a box collider, at its place in the scene. Each body is in that
+entity with a rigidbody or a collider, at its place in the scene. Each body is in that
 entity's `body` field. Bodies and shapes carry their entity's `SceneEntity *` (`&e.entity`)
 as user data, so Box2D events and queries lead back to the entity.
 
@@ -86,7 +88,7 @@ back into the transform.
 ## Platformer controller
 
 Add a **Platformer Controller** to an entity with a dynamic Rigidbody (with **Fixed Rot.**
-on) and a Box Collider, and the exported game moves it like a platformer character: left /
+on) and a Collider, and the exported game moves it like a platformer character: left /
 right with **A / D** or the arrow keys, jump with **Space**, **W** or **Up**.
 
 | Setting | Default | What it does |

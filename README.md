@@ -24,8 +24,8 @@ well, while staying out of the main game code.
 ## What it does
 
 - **Level layout:** entities with transforms and parents, sprites (rectangle, circle,
-  triangle) as placeholders, and box colliders. The exported code gives you each entity's
-  final `pose` and the box of each collider, ready for your own drawing or level
+  triangle) as placeholders, and colliders (box, circle, triangle). The exported code gives
+  you each entity's final `pose` and its collider, ready for your own drawing or level
   generation.
 - **UI that fits any screen:** UI elements anchored to the screen's corners, edges or
   centre, or stretched along them. Preview other screen shapes (16:10, 21:9, 4:3,

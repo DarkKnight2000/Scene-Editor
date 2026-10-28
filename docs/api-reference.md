@@ -55,7 +55,8 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `SceneTransform` | `position`, `rotation` (degrees), `scale`, `ignore_parent_rotation`, `ignore_parent_scale` |
 | `ScenePose` | `position`, `rotation`, `scale` |
 | `SceneSprite` | `size` (before scaling), `tint` |
-| `SceneBoxCollider` | `offset`, `size` (before scaling), `is_trigger`, `density`, `friction`, `restitution` |
+| `SceneColliderShape` | `SCENE_COLLIDER_BOX`, `SCENE_COLLIDER_CIRCLE`, `SCENE_COLLIDER_TRIANGLE` |
+| `SceneCollider` | `shape`, `offset`, `size` (box and triangle, before scaling), `radius` (circle), `is_trigger`, `density`, `friction`, `restitution` |
 | `SceneEntity` | `transform`, `pose`: an entity without other components |
 | `Scene[Sprite][Collider][Body][Platformer]Entity` | `transform`, `pose`, `entity` (both as a `SceneEntity`), then `sprite` and `visible`, `collider`, `body`, `platformer` as named; one type for each combination the project uses |
 | `SceneBox` | `center`, `size`, `rotation` |
@@ -92,5 +93,5 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `ScenePlatformer` | a platformer controller: `move_speed`, `acceleration`, `air_control`, `jump_height`, `coyote_time`, `jump_buffer`, `jump_cut`, `max_fall_speed`; input `manual_input`, `move`, `jump_pressed`, `jump_held`; state `grounded`, `coyote_left`, `buffer_left`, `rising` |
 | `void scene_platformer_update(ScenePlatformer *p, b2BodyId body, float dt)` | moves a platformer character for one frame; called by the scene's `_step` |
 
-`scene_physics_create_world`, `scene_body_def`, `scene_add_box_collider`,
+`scene_physics_create_world`, `scene_body_def`, `scene_add_collider`,
 `scene_physics_advance` and `scene_body_to_entity` are used by the generated scenes.

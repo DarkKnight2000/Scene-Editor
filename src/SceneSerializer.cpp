@@ -101,10 +101,16 @@ bool deserializeScene(const std::string& text, Scene& out, std::string& error) {
         }
         byNumber.emplace(number, id);
 
-        if (const auto components = entry.find("components"); components != entry.end() && components->is_object()) {
+        if (const auto it = entry.find("components"); it != entry.end() && it->is_object()) {
+            json components = *it;
+            // Older files: the Collider was "boxCollider", always a box (its default shape).
+            if (components.contains("boxCollider") && !components.contains("collider")) {
+                components["collider"] = components["boxCollider"];
+                components.erase("boxCollider");
+            }
             Entity& e = scene.get(id);
             for (const ComponentType& type : componentTypes()) {
-                if (const auto data = components->find(type.key); data != components->end() && data->is_object()) {
+                if (const auto data = components.find(type.key); data != components.end() && data->is_object()) {
                     type.load(e, *data);
                 }
             }
@@ -112,7 +118,7 @@ bool deserializeScene(const std::string& text, Scene& out, std::string& error) {
             if (!scene.isRoot(e.id) && e.rectTransform) {
                 e.transform.reset();
             }
-            for (const auto& [key, value] : components->items()) {
+            for (const auto& [key, value] : components.items()) {
                 const bool known = std::any_of(componentTypes().begin(), componentTypes().end(),
                                                [&](const ComponentType& t) { return key == t.key; });
                 if (!known) {
