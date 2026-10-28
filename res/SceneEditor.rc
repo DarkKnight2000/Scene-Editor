@@ -1,0 +1,3 @@
+// Windows resources of the editor executable.
+// GLFW_ICON: the file icon, and GLFW uses it for the window and the taskbar too.
+GLFW_ICON ICON "SceneEditor.ico"

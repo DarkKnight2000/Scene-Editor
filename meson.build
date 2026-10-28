@@ -82,9 +82,17 @@ editor_lib = static_library(
   dependencies : [raygui_dep, json_dep],
 )
 
+# The icon (res/, drawn by tools/make_icon.py).
+app_resources = []
+if host_machine.system() == 'windows'
+  app_resources += import('windows').compile_resources('res/SceneEditor.rc',
+                                                       depend_files : 'res/SceneEditor.ico')
+endif
+
 executable(
   'SceneEditor',
   'src/main.cpp',
+  app_resources,
   link_with : editor_lib,
   dependencies : [raygui_dep, json_dep],
   link_args : app_link_args,
