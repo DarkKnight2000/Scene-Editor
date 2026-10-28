@@ -26,6 +26,8 @@ UICanvasFrame uiCanvasFrame(const DisplaySettings& display, float aspect);
 //   Mouse wheel: zoom around the cursor   Right drag: pan   F: frame the design area
 //   Click: select (UI elements first, then sprites and markers; empty space deselects)
 //   Left drag: move the entity or UI element under the mouse   Esc while dragging: cancel
+//   Drag a corner handle of the selection: scale a sprite's entity about its centre (Shift:
+//     keep its proportions), or resize a UI element with the opposite corner fixed
 class SceneView {
 public:
     // Input: zoom, pan, selecting and dragging. Call before drawing, after the history has
@@ -47,6 +49,13 @@ private:
     EntityId pick(const Scene& scene, Vector2 point, EntityId selected, const UICanvasFrame& canvas) const;
     // Moves the dragged entity by `delta` (scene units) from where the drag started.
     void dragTo(Scene& scene, Vector2 delta, const UICanvasFrame& canvas) const;
+    // The selection's corner handle at `point` (0..3: top-left, top-right, bottom-right,
+    // bottom-left, before rotation), or -1.
+    int handleAt(const Scene& scene, EntityId selected, Vector2 point, const UICanvasFrame& canvas) const;
+    // Scales (entities) or resizes (UI elements) the pressed one for a handle dragged to `point`.
+    void resizeTo(Scene& scene, Vector2 point, const UICanvasFrame& canvas, bool keepProportions) const;
+    // Puts back the scale or size it had when the handle drag started.
+    void cancelResize(Scene& scene, const UICanvasFrame& canvas) const;
 
     float m_zoom = 1.0f;
     Vector2 m_target{0.0f, 0.0f}; // scene point at the centre of the view
@@ -60,4 +69,9 @@ private:
     Vector2 m_pressMouse{};  // window pixels
     Vector2 m_pressPoint{};  // scene units
     Vector2 m_dragStart{};   // final position (entities) or UIRectTransform position (UI elements)
+
+    // A corner handle pressed instead (-1: none), and what the drag started from.
+    int m_handle = -1;
+    Vector2 m_scaleStart{};   // entities: the transform's scale
+    Rectangle m_rectStart{};  // UI elements: the rectangle, in canvas units
 };

@@ -97,13 +97,17 @@ void drawMarker(Vector2 p, Color color, float px) {
     DrawLineEx({p.x, p.y - 8.0f * px}, {p.x, p.y + 8.0f * px}, 2.0f * px, color);
 }
 
+// Corner `i` of a (rotated) rectangle: 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left.
+Vector2 handleCorner(Vector2 center, Vector2 halfSize, float degrees, int i) {
+    const Vector2 corner{(i == 1 || i == 2) ? halfSize.x : -halfSize.x, i >= 2 ? halfSize.y : -halfSize.y};
+    return Vector2Add(center, Vector2Rotate(corner, degrees * DEG2RAD));
+}
+
 // Selection handles: small squares at the corners of a (rotated) rectangle. `px` = one screen pixel.
 void drawHandles(Vector2 center, Vector2 halfSize, float degrees, float px) {
-    const float rad = degrees * DEG2RAD;
     const float h = 3.5f * px;
-    for (const Vector2 corner : {Vector2{-halfSize.x, -halfSize.y}, Vector2{halfSize.x, -halfSize.y},
-                                 Vector2{halfSize.x, halfSize.y}, Vector2{-halfSize.x, halfSize.y}}) {
-        const Vector2 p = Vector2Add(center, Vector2Rotate(corner, rad));
+    for (int i = 0; i < 4; ++i) {
+        const Vector2 p = handleCorner(center, halfSize, degrees, i);
         DrawRectangleRec({p.x - h - px, p.y - h - px, 2.0f * (h + px), 2.0f * (h + px)}, kSelectionColor);
         DrawRectangleRec({p.x - h + px, p.y - h + px, 2.0f * (h - px), 2.0f * (h - px)}, kBackground);
     }
@@ -159,6 +163,33 @@ float canvasScale(const UICanvasFrame& canvas) {
 Rectangle canvasToScene(const UICanvasFrame& canvas, Rectangle r) {
     const float k = canvasScale(canvas);
     return {canvas.frame.x + r.x * k, canvas.frame.y + r.y * k, r.width * k, r.height * k};
+}
+
+// The rectangle the selection's corner handles sit on, a pixel outside its sprite (entities)
+// or its rectangle (UI elements). False if it has no handles. `px` = one screen pixel.
+struct HandleFrame {
+    Vector2 center;
+    Vector2 half;
+    float degrees;
+};
+bool handleFrame(const Scene& scene, EntityId selected, const UICanvasFrame& canvas, float px, HandleFrame& out) {
+    const Entity* e = scene.find(selected);
+    if (e == nullptr || scene.isRoot(selected)) {
+        return false;
+    }
+    if (e->rectTransform) {
+        const Rectangle r = canvasToScene(canvas, scene.uiRect(selected, canvas.size));
+        out = {{r.x + r.width / 2.0f, r.y + r.height / 2.0f}, {r.width / 2.0f + px, r.height / 2.0f + px}, 0.0f};
+        return true;
+    }
+    if (!e->sprite) {
+        return false;
+    }
+    const Pose pose = scene.finalPose(selected);
+    out = {pose.position,
+           {e->sprite->size.x * std::fabs(pose.scale.x) / 2.0f + px, e->sprite->size.y * std::fabs(pose.scale.y) / 2.0f + px},
+           pose.rotation};
+    return true;
 }
 
 // Draws `text` inside `rect`, aligned per axis, line by line (the same layout as the
@@ -365,6 +396,65 @@ void SceneView::dragTo(Scene& scene, Vector2 delta, const UICanvasFrame& canvas)
     }
 }
 
+int SceneView::handleAt(const Scene& scene, EntityId selected, Vector2 point, const UICanvasFrame& canvas) const {
+    const float px = 1.0f / m_zoom;
+    HandleFrame h;
+    if (!handleFrame(scene, selected, canvas, px, h)) {
+        return -1;
+    }
+    const float reach = 6.0f * px; // a little more than the drawn square
+    for (int i = 0; i < 4; ++i) {
+        const Vector2 p = handleCorner(h.center, h.half, h.degrees, i);
+        if (std::fabs(point.x - p.x) <= reach && std::fabs(point.y - p.y) <= reach) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void SceneView::resizeTo(Scene& scene, Vector2 point, const UICanvasFrame& canvas, bool keepProportions) const {
+    Entity& e = scene.get(m_pressed);
+    if (e.rectTransform) {
+        // The dragged corner follows the mouse; the opposite one stays put.
+        const Vector2 delta = Vector2Scale(Vector2Subtract(point, m_pressPoint), 1.0f / canvasScale(canvas));
+        const Rectangle r = m_rectStart;
+        const bool right = m_handle == 1 || m_handle == 2;
+        const bool bottom = m_handle >= 2;
+        const float movedX = (right ? r.x + r.width : r.x) + delta.x;
+        const float movedY = (bottom ? r.y + r.height : r.y) + delta.y;
+        const float fixedX = right ? r.x : r.x + r.width;
+        const float fixedY = bottom ? r.y : r.y + r.height;
+        scene.setUIRect(m_pressed,
+                        {std::min(movedX, fixedX), std::min(movedY, fixedY), std::fabs(movedX - fixedX),
+                         std::fabs(movedY - fixedY)},
+                        canvas.size);
+        return;
+    }
+    // Scale about the entity's centre: the grabbed point follows the mouse, measured along the
+    // entity's own (rotated) axes. Crossing the centre flips it.
+    const Pose pose = scene.finalPose(m_pressed);
+    const float rad = -pose.rotation * DEG2RAD;
+    const Vector2 from = Vector2Rotate(Vector2Subtract(m_pressPoint, pose.position), rad);
+    const Vector2 to = Vector2Rotate(Vector2Subtract(point, pose.position), rad);
+    Vector2 ratio{from.x != 0.0f ? to.x / from.x : 1.0f, from.y != 0.0f ? to.y / from.y : 1.0f};
+    if (keepProportions) {
+        const float lengthSq = Vector2DotProduct(from, from);
+        const float k = lengthSq > 0.0f ? Vector2DotProduct(to, from) / lengthSq : 1.0f;
+        ratio = {k, k};
+    }
+    const auto nonZero = [](float s) { return std::fabs(s) < 0.001f ? std::copysign(0.001f, s) : s; };
+    e.transform->scale = {nonZero(m_scaleStart.x * ratio.x), nonZero(m_scaleStart.y * ratio.y)};
+}
+
+void SceneView::cancelResize(Scene& scene, const UICanvasFrame& canvas) const {
+    Entity& e = scene.get(m_pressed);
+    if (e.rectTransform) {
+        scene.setUIRect(m_pressed, m_rectStart, canvas.size);
+    } else {
+        e.transform->scale = m_scaleStart;
+    }
+}
+
 void SceneView::update(Scene& scene, EntityId& selected, Rectangle viewport, const DisplaySettings& display,
                        bool allowInput) {
     if (!m_framed && viewport.width > 0.0f && viewport.height > 0.0f) {
@@ -374,6 +464,7 @@ void SceneView::update(Scene& scene, EntityId& selected, Rectangle viewport, con
     if (!allowInput) {
         m_panning = false;
         m_pressed = kNoEntity;
+        m_handle = -1;
         m_dragging = false;
         return;
     }
@@ -409,14 +500,30 @@ void SceneView::update(Scene& scene, EntityId& selected, Rectangle viewport, con
     // Select on press; moving a few pixels with the button held drags the pressed entity.
     const UICanvasFrame canvas = uiCanvasFrame(display, kPreviews[m_preview].aspect);
     const Vector2 point = GetScreenToWorld2D(mouse, camera(viewport));
+    // Over a corner handle of the selection: pressing scales or resizes instead of moving.
+    const int hoveredHandle = over && !m_panning && m_pressed == kNoEntity ? handleAt(scene, selected, point, canvas) : -1;
+    const auto handleCursor = [](int handle) {
+        return handle == 0 || handle == 2 ? MOUSE_CURSOR_RESIZE_NWSE : MOUSE_CURSOR_RESIZE_NESW;
+    };
+    if (hoveredHandle >= 0) {
+        ui::requestCursor(handleCursor(hoveredHandle));
+    }
     if (over && !m_panning && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        selected = pick(scene, point, selected, canvas);
+        m_handle = hoveredHandle;
+        if (m_handle < 0) {
+            selected = pick(scene, point, selected, canvas);
+        }
         m_pressed = selected;
         m_dragging = false;
         m_pressMouse = mouse;
         m_pressPoint = point;
         if (const Entity* e = scene.find(m_pressed)) {
             m_dragStart = e->rectTransform ? e->rectTransform->position : scene.finalPose(m_pressed).position;
+            if (e->rectTransform) {
+                m_rectStart = scene.uiRect(m_pressed, canvas.size);
+            } else if (e->transform) {
+                m_scaleStart = e->transform->scale;
+            }
         }
     }
     if (m_pressed == kNoEntity) {
@@ -425,6 +532,7 @@ void SceneView::update(Scene& scene, EntityId& selected, Rectangle viewport, con
     if (!scene.contains(m_pressed) || !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
         m_pressed = kNoEntity; // released (the history records the move as one edit)
         m_dragging = false;
+        m_handle = -1;
         return;
     }
     if (!m_dragging && Vector2Distance(mouse, m_pressMouse) > 3.0f) {
@@ -432,13 +540,23 @@ void SceneView::update(Scene& scene, EntityId& selected, Rectangle viewport, con
     }
     if (m_dragging) {
         if (IsKeyPressed(KEY_ESCAPE)) {
-            dragTo(scene, {0.0f, 0.0f}, canvas); // back where it started
+            if (m_handle >= 0) {
+                cancelResize(scene, canvas);
+            } else {
+                dragTo(scene, {0.0f, 0.0f}, canvas); // back where it started
+            }
             m_pressed = kNoEntity;
             m_dragging = false;
+            m_handle = -1;
             return;
         }
-        dragTo(scene, Vector2Subtract(point, m_pressPoint), canvas);
-        ui::requestCursor(MOUSE_CURSOR_RESIZE_ALL);
+        if (m_handle >= 0) {
+            resizeTo(scene, point, canvas, IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT));
+            ui::requestCursor(handleCursor(m_handle));
+        } else {
+            dragTo(scene, Vector2Subtract(point, m_pressPoint), canvas);
+            ui::requestCursor(MOUSE_CURSOR_RESIZE_ALL);
+        }
     }
 }
 
@@ -518,8 +636,9 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, EntityId selected, 
             const Rectangle r = toFrame(scene.uiRect(selected, canvas.size));
             DrawRectangleLinesEx({r.x - px, r.y - px, r.width + 2.0f * px, r.height + 2.0f * px}, 1.5f * px,
                                  kSelectionColor);
-            drawHandles({r.x + r.width / 2.0f, r.y + r.height / 2.0f}, {r.width / 2.0f + px, r.height / 2.0f + px}, 0.0f,
-                        px);
+            if (HandleFrame h; handleFrame(scene, selected, canvas, px, h)) {
+                drawHandles(h.center, h.half, h.degrees, px);
+            }
             const UIRectTransformComponent& t = *sel->rectTransform;
 
             // Anchors: a plus at each corner of the anchor rectangle on the parent (one plus
@@ -543,11 +662,9 @@ void SceneView::draw(const Scene& scene, Rectangle viewport, EntityId selected, 
             DrawLineEx(target, pose.position, 1.5f * px, Fade(kSelectionColor, 0.6f));
             DrawCircleV(target, 4.0f * px, kSelectionColor);
         }
-        if (const auto& sprite = sel->sprite) {
-            const Vector2 half{sprite->size.x * std::fabs(pose.scale.x) / 2.0f + px,
-                               sprite->size.y * std::fabs(pose.scale.y) / 2.0f + px};
-            drawRotatedRectLines(pose.position, half, pose.rotation, 1.5f * px, kSelectionColor);
-            drawHandles(pose.position, half, pose.rotation, px);
+        if (HandleFrame h; handleFrame(scene, selected, canvas, px, h)) {
+            drawRotatedRectLines(h.center, h.half, h.degrees, 1.5f * px, kSelectionColor);
+            drawHandles(h.center, h.half, h.degrees, px);
         } else {
             drawMarker(pose.position, kSelectionColor, px);
         }

@@ -99,6 +99,9 @@ public:
     // A UI element's rectangle in canvas units, on a canvas of `canvasSize` (top-left at
     // (0, 0)). The Canvas itself gives the whole canvas.
     Rectangle uiRect(EntityId entity, Vector2 canvasSize) const;
+    // Sets a UI element's position and size so that uiRect(entity, canvasSize) is `rect`; its
+    // anchors and pivot are kept. In a Linear Layout, the layout still places it along its axis.
+    void setUIRect(EntityId entity, Rectangle rect, Vector2 canvasSize);
 
     // Canvas size used to keep UI elements in place when they change parent: the design
     // resolution. Set by the editor from the project settings.

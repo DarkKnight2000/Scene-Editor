@@ -282,6 +282,14 @@ Rectangle Scene::uiRect(EntityId entity, Vector2 canvasSize) const {
     return rect;
 }
 
+void Scene::setUIRect(EntityId entity, Rectangle rect, Vector2 canvasSize) {
+    Entity* e = find(entity);
+    if (e == nullptr || !e->rectTransform || isCanvas(entity)) {
+        return;
+    }
+    placeAt(*e->rectTransform, uiRect(e->parent, canvasSize), rect);
+}
+
 bool Scene::canSetOrigin(EntityId entity, EntityId origin) const {
     if (isRoot(entity) || !contains(origin) || isUI(entity) != isUI(origin)) {
         return false;
