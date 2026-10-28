@@ -114,9 +114,13 @@ bool exportProject(const Project& project,
         scenes.push_back(std::move(info));
     }
 
+    std::set<EntityFields> entityTypes;
+    for (const ExportedScene& s : scenes) {
+        entityTypes.insert(s.entityTypes.begin(), s.entityTypes.end());
+    }
     std::string error;
     bool usable = !scenes.empty();
-    if (usable && !(writeSceneCommon(outDir, project.display, project.physics, error) &&
+    if (usable && !(writeSceneCommon(outDir, project.display, project.physics, entityTypes, error) &&
                     writeSceneManager(scenes, outDir, startScene, error) &&
                     (!editable[1].write || writeProjectMain(project.name, outDir, error)) &&
                     (!editable[0].write || writeMakefile(project.name, outDir, error)) &&

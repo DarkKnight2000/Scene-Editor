@@ -7,7 +7,7 @@ Each scene `<name>` exports `generated/<name>.h` and `.c`. For a scene called `h
 ```c
 typedef struct HudScene {
     SceneTransform world;      /* the World root: moves, rotates and zooms the whole scene */
-    SceneEntity ground;        /* "Ground" */
+    SceneSpriteEntity ground;  /* "Ground" */
     SceneUIElement health_bar; /* "Health Bar" */
     SceneUIElement minimap;    /* "Minimap" */
     SceneUIElement score;      /* "Score" */
@@ -17,7 +17,8 @@ typedef struct HudScene {
 } HudScene;
 ```
 
-- **Entities** (`SceneEntity`) are placed in the scene: see [Entities](entities.md).
+- **Entities** (`SceneEntity`, or a type with the fields of its components, like
+  `SceneSpriteEntity`) are placed in the scene: see [Entities](entities.md).
 - **UI elements** (`SceneUIElement`) are laid out on the screen: see [UI](ui.md).
 - **Scenes with physics bodies** also have `physics_world` and `physics_time`: see
   [Physics](physics.md).

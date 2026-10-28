@@ -9,7 +9,7 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | Member | |
 |---|---|
 | `SceneTransform world` | the World root |
-| `SceneEntity <entity>` | one per entity, in drawing order |
+| `Scene...Entity <entity>` | one per entity, in drawing order; its type has the fields of its components |
 | `SceneUIElement <element>` | one per UI element, parents first |
 | `Rectangle ui_canvas`, `float ui_scale` | scenes with UI: the Canvas in window pixels and pixels per canvas unit, from the last `_update_ui` |
 | `const Font *ui_font` | scenes with labels: the labels' font, NULL for raylib's default |
@@ -56,7 +56,8 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `ScenePose` | `position`, `rotation`, `scale` |
 | `SceneSprite` | `size` (before scaling), `tint` |
 | `SceneBoxCollider` | `offset`, `size` (before scaling), `is_trigger`, `density`, `friction`, `restitution` |
-| `SceneEntity` | `transform`, `pose`, `sprite`, `collider`, `visible`, and `body` and `platformer` with physics |
+| `SceneEntity` | `transform`, `pose`: an entity without other components |
+| `Scene[Sprite][Collider][Body][Platformer]Entity` | `transform`, `pose`, `entity` (both as a `SceneEntity`), then `sprite` and `visible`, `collider`, `body`, `platformer` as named; one type for each combination the project uses |
 | `SceneBox` | `center`, `size`, `rotation` |
 
 | | |
@@ -89,7 +90,7 @@ For a scene `<name>` with struct type `<Name>Scene` (e.g. `hud` → `HudScene`):
 | `SCENE_GRAVITY_X`, `SCENE_GRAVITY_Y` | m/s², y down |
 | `b2Vec2 scene_to_meters(Vector2 v)`, `Vector2 scene_to_scene_units(b2Vec2 m)` | unit conversion |
 | `ScenePlatformer` | a platformer controller: `move_speed`, `acceleration`, `air_control`, `jump_height`, `coyote_time`, `jump_buffer`, `jump_cut`, `max_fall_speed`; input `manual_input`, `move`, `jump_pressed`, `jump_held`; state `grounded`, `coyote_left`, `buffer_left`, `rising` |
-| `void scene_platformer_update(SceneEntity *entity, float dt)` | moves a platformer character for one frame; called by the scene's `_step` |
+| `void scene_platformer_update(ScenePlatformer *p, b2BodyId body, float dt)` | moves a platformer character for one frame; called by the scene's `_step` |
 
 `scene_physics_create_world`, `scene_body_def`, `scene_add_box_collider`,
 `scene_physics_advance` and `scene_body_to_entity` are used by the generated scenes.

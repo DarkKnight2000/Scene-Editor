@@ -1,19 +1,53 @@
 # Entities
 
-Every entity in a scene's World tree is a `SceneEntity` field of the scene struct:
+Every entity in a scene's World tree is a field of the scene struct. Every entity has a
+`transform` and a `pose`; an entity without other components is a `SceneEntity`:
 
 ```c
 typedef struct SceneEntity {
     SceneTransform transform;
-    ScenePose pose;            /* from the last _update_poses or _draw */
-    SceneSprite sprite;        /* if it has one */
-    SceneBoxCollider collider; /* if it has one */
-    bool visible;              /* false: its sprite isn't drawn */
-#if SCENE_PHYSICS
-    b2BodyId body;              /* if it has a rigidbody or a collider */
-    ScenePlatformer platformer; /* if it has a platformer controller (see Physics) */
-#endif
+    ScenePose pose; /* from the last _update_poses or _draw */
 } SceneEntity;
+```
+
+An entity with more components has a struct type with only the fields those components
+need, named after them. `scene_common.h` has one for each combination the project uses:
+
+| Type name has | Fields | From |
+|---|---|---|
+| `Sprite` | `sprite`, `visible` | a sprite (with **Export** ticked) |
+| `Collider` | `collider` | a box collider |
+| `Body` | `body` | a rigidbody or a box collider, with physics on |
+| `Platformer` | `platformer` | a platformer controller (see [Physics](physics.md)) |
+
+For example, a sprite with a box collider, with physics on:
+
+```c
+typedef struct SceneSpriteColliderBodyEntity {
+    union {
+        SceneEntity entity;
+        struct {
+            SceneTransform transform;
+            ScenePose pose;
+        };
+    };
+    SceneSprite sprite;
+    SceneBoxCollider collider;
+    b2BodyId body;
+    bool visible; /* false: its sprite isn't drawn */
+} SceneSpriteColliderBodyEntity;
+```
+
+The C11 anonymous union lets you use `e.transform` and `e.pose` directly, and gives you
+`e.entity`, the same two fields as a `SceneEntity`. Use it for code that takes any entity:
+
+```c
+static void nudge(SceneEntity *e, Vector2 by) {
+    e->transform.position.x += by.x;
+    e->transform.position.y += by.y;
+}
+
+nudge(&level.player.entity, (Vector2){4.0f, 0.0f});
 ```
 
 ## Transforms and poses

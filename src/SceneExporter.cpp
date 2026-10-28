@@ -128,6 +128,23 @@ std::string sceneIdentifier(const std::string& sceneName) {
     return id.empty() ? std::string("_") : id;
 }
 
+std::string entityTypeName(EntityFields fields) {
+    std::string name = "Scene";
+    if (fields.sprite) {
+        name += "Sprite";
+    }
+    if (fields.collider) {
+        name += "Collider";
+    }
+    if (fields.body) {
+        name += "Body";
+    }
+    if (fields.platformer) {
+        name += "Platformer";
+    }
+    return name + "Entity";
+}
+
 namespace {
 
 // Lower-case C identifier for a field named after `name` in the editor ("Health Bar" ->
@@ -277,6 +294,12 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     const auto hasPlatformer = [&](const Entity* e) {
         return physics && e->platformer && e->rigidbody && e->rigidbody->type == BodyType::Dynamic;
     };
+    const auto fieldsOf = [&](const Entity* e) {
+        return EntityFields{.sprite = e->sprite && e->sprite->exported,
+                            .collider = e->boxCollider.has_value(),
+                            .body = physics && (e->rigidbody || e->boxCollider),
+                            .platformer = hasPlatformer(e)};
+    };
 
     info = ExportedScene{};
     info.name = sceneName;
@@ -288,6 +311,7 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     info.hasBodies = !bodies.empty();
     for (const Entity* e : drawn) {
         info.entities.push_back(field.at(e->id));
+        info.entityTypes.insert(fieldsOf(e));
         if (e->boxCollider) {
             info.colliders.push_back(field.at(e->id));
         }
@@ -299,7 +323,8 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
     // --- Header ---
     std::ostringstream fields;
     for (const Entity* e : drawn) {
-        fields << "    SceneEntity " << field.at(e->id) << "; /* \"" << commentText(e->name) << "\" */\n";
+        fields << "    " << entityTypeName(fieldsOf(e)) << " " << field.at(e->id) << "; /* \"" << commentText(e->name)
+               << "\" */\n";
     }
     for (const Entity* e : ui) {
         fields << "    SceneUIElement " << field.at(e->id) << "; /* \"" << commentText(e->name) << "\" */\n";
@@ -374,7 +399,7 @@ typedef struct {{type}} {
     for (const Entity* e : drawn) {
         c << "        ." << field.at(e->id) << " = {.transform = " << transformInit(*e->transform);
         if (const auto& sprite = e->sprite; sprite && sprite->exported) {
-            c << ", .sprite = {" << pair(sprite->size) << ", " << rgba(sprite->tint) << "}";
+            c << ", .sprite = {" << pair(sprite->size) << ", " << rgba(sprite->tint) << "}, .visible = true";
         }
         if (const auto& col = e->boxCollider) {
             c << ", .collider = {.offset = " << pair(col->offset) << ", .size = " << pair(col->size);
@@ -391,7 +416,7 @@ typedef struct {{type}} {
               << ", .jump_buffer = " << floatLiteral(pc->jumpBuffer) << ", .jump_cut = " << floatLiteral(pc->jumpCut)
               << ", .max_fall_speed = " << floatLiteral(pc->maxFallSpeed) << "}";
         }
-        c << ", .visible = true},\n";
+        c << "},\n";
     }
     for (const Entity* e : ui) {
         const UIRectTransformComponent& u = *e->rectTransform;
@@ -433,7 +458,7 @@ typedef struct {{type}} {
             const auto& rb = e->rigidbody;
             const std::string pose = "p_" + field.at(e->id);
             c << "        def = scene_body_def(" << pose << ", "
-              << bodyTypeConstant(rb ? rb->type : BodyType::Static) << ", &" << ref(e) << ");\n";
+              << bodyTypeConstant(rb ? rb->type : BodyType::Static) << ", &" << ref(e) << ".entity);\n";
             if (rb) {
                 const RigidbodyComponent defaults;
                 if (rb->gravityScale != defaults.gravityScale) {
@@ -455,7 +480,7 @@ typedef struct {{type}} {
             c << "        " << ref(e) << ".body = b2CreateBody(s->physics_world, &def);\n";
             if (e->boxCollider) {
                 c << "        scene_add_box_collider(" << ref(e) << ".body, " << pose << ".scale, " << ref(e)
-                  << ".collider, &" << ref(e) << ");\n";
+                  << ".collider, &" << ref(e) << ".entity);\n";
             }
         }
         c << "    }\n";
@@ -531,7 +556,7 @@ typedef struct {{type}} {
         c << "\nvoid " << prefix << "_step(" << type << " *s, float dt) {\n";
         for (const Entity* e : drawn) {
             if (hasPlatformer(e)) {
-                c << "    scene_platformer_update(&" << ref(e) << ", dt);\n";
+                c << "    scene_platformer_update(&" << ref(e) << ".platformer, " << ref(e) << ".body, dt);\n";
             }
         }
         c << "    scene_physics_advance(s->physics_world, &s->physics_time, dt);\n";
@@ -547,7 +572,7 @@ typedef struct {{type}} {
             for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
                 base = "scene_child_pose(" + base + ", " + ref(*it) + ".transform)";
             }
-            c << "    scene_body_to_entity(&" << ref(e) << ", " << base << ");\n";
+            c << "    scene_body_to_entity(" << ref(e) << ".body, &" << ref(e) << ".entity, " << base << ");\n";
         }
         c << "}\n"
           << "\nvoid " << prefix << "_deinit(" << type << " *s) {\n"
@@ -761,10 +786,47 @@ std::string scalingCode(ScaleMode mode) {
     }
     return code;
 }
+// The struct type for entities with `fields`: the SceneEntity fields, also reachable as one
+// SceneEntity through a C11 anonymous union, then only the fields it needs.
+std::string entityTypeCode(EntityFields fields) {
+    const std::string name = entityTypeName(fields);
+    std::string code = "\ntypedef struct " + name + " {\n"
+                       "    union {\n"
+                       "        SceneEntity entity;\n"
+                       "        struct {\n"
+                       "            SceneTransform transform;\n"
+                       "            ScenePose pose;\n"
+                       "        };\n"
+                       "    };\n";
+    if (fields.sprite) {
+        code += "    SceneSprite sprite;\n";
+    }
+    if (fields.collider) {
+        code += "    SceneBoxCollider collider;\n";
+    }
+    if (fields.body) {
+        code += "    b2BodyId body;\n";
+    }
+    if (fields.platformer) {
+        code += "    ScenePlatformer platformer;\n";
+    }
+    if (fields.sprite) {
+        code += "    bool visible; /* false: its sprite isn't drawn */\n";
+    }
+    return code + "} " + name + ";\n";
+}
+
 } // namespace
 
 bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display,
-                      const PhysicsSettings& physics, std::string& error) {
+                      const PhysicsSettings& physics, const std::set<EntityFields>& entityTypes,
+                      std::string& error) {
+    std::string entityTypesCode;
+    for (const EntityFields& fields : entityTypes) {
+        if (fields != EntityFields{}) {
+            entityTypesCode += entityTypeCode(fields);
+        }
+    }
     const std::vector<std::pair<std::string, std::string>> values{
         {"marker", kGeneratedMarker},
         {"width", floatLiteral(static_cast<float>(display.width))},
@@ -776,6 +838,7 @@ bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings
         {"pixels_per_meter", floatLiteral(physics.pixelsPerMeter)},
         {"gravity_x", floatLiteral(physics.gravityX)},
         {"gravity_y", floatLiteral(physics.gravityY)},
+        {"entity_types", entityTypesCode},
     };
 
     const std::string h = fill(R"GEN({{marker}}: code shared by every exported scene. Do not edit.
@@ -881,18 +944,14 @@ typedef struct ScenePlatformer {
 } ScenePlatformer;
 #endif
 
+/* What every entity has. An entity with more components has a type of its own with just
+   the fields it needs (below, one for each combination the project uses); their `entity`
+   member is the same transform and pose as a SceneEntity, for code that takes any entity. */
 typedef struct SceneEntity {
     SceneTransform transform;
-    ScenePose pose;            /* from the last _update_poses or _draw */
-    SceneSprite sprite;        /* if it has one */
-    SceneBoxCollider collider; /* if it has one */
-    bool visible;              /* false: its sprite isn't drawn */
-#if SCENE_PHYSICS
-    b2BodyId body;              /* if it has a rigidbody or a collider */
-    ScenePlatformer platformer; /* if it has a platformer controller */
-#endif
+    ScenePose pose; /* from the last _update_poses or _draw */
 } SceneEntity;
-
+{{entity_types}}
 /* A box placed in the scene: centre, scaled size, rotation in degrees. */
 typedef struct SceneBox {
     Vector2 center;
@@ -961,11 +1020,11 @@ b2WorldId scene_physics_create_world(void);
 b2BodyDef scene_body_def(ScenePose pose, b2BodyType type, SceneEntity *entity);
 void scene_add_box_collider(b2BodyId body, Vector2 scale, SceneBoxCollider collider, SceneEntity *entity);
 void scene_physics_advance(b2WorldId world, float *time, float dt);
-void scene_body_to_entity(SceneEntity *entity, ScenePose parent);
+void scene_body_to_entity(b2BodyId body, SceneEntity *entity, ScenePose parent);
 
 /* Moves a platformer character for this frame (before the physics steps): input, ground,
    coyote time, jump buffer, jump cut, acceleration. The scene's _step calls it. */
-void scene_platformer_update(SceneEntity *entity, float dt);
+void scene_platformer_update(ScenePlatformer *p, b2BodyId body, float dt);
 #endif
 
 #ifdef __cplusplus
@@ -1163,10 +1222,10 @@ void scene_physics_advance(b2WorldId world, float *time, float dt) {
 
 /* The entity's transform, from where its body is; `parent` is the parent's placement in
    the World's own space. */
-void scene_body_to_entity(SceneEntity *entity, ScenePose parent) {
+void scene_body_to_entity(b2BodyId body, SceneEntity *entity, ScenePose parent) {
     SceneTransform *t = &entity->transform;
-    const Vector2 position = scene_to_scene_units(b2Body_GetPosition(entity->body));
-    const float rotation = b2Rot_GetAngle(b2Body_GetRotation(entity->body)) * RAD2DEG;
+    const Vector2 position = scene_to_scene_units(b2Body_GetPosition(body));
+    const float rotation = b2Rot_GetAngle(b2Body_GetRotation(body)) * RAD2DEG;
     const float parent_rotation = t->ignore_parent_rotation ? 0.0f : parent.rotation;
     const Vector2 scale = t->ignore_parent_scale ? (Vector2){1.0f, 1.0f} : parent.scale;
     const float c = cosf(-parent_rotation * DEG2RAD);
@@ -1204,12 +1263,11 @@ static float approach(float value, float target, float step) {
     return value < target ? fminf(value + step, target) : fmaxf(value - step, target);
 }
 
-void scene_platformer_update(SceneEntity *entity, float dt) {
-    ScenePlatformer *p = &entity->platformer;
+void scene_platformer_update(ScenePlatformer *p, b2BodyId body, float dt) {
     b2Vec2 v;
     float vx, vy;
     bool want_jump;
-    if (!b2Body_IsValid(entity->body)) {
+    if (!b2Body_IsValid(body)) {
         return;
     }
     if (!p->manual_input) {
@@ -1219,12 +1277,12 @@ void scene_platformer_update(SceneEntity *entity, float dt) {
         p->jump_pressed = p->jump_pressed || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
         p->jump_held = IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_W) || IsKeyDown(KEY_UP);
     }
-    v = b2Body_GetLinearVelocity(entity->body);
+    v = b2Body_GetLinearVelocity(body);
     vx = v.x * SCENE_PIXELS_PER_METER;
     vy = v.y * SCENE_PIXELS_PER_METER;
 
     /* On the ground (and not on the way up): coyote time starts over. */
-    p->grounded = vy > -1.0f && on_ground(entity->body);
+    p->grounded = vy > -1.0f && on_ground(body);
     if (p->grounded) {
         p->coyote_left = p->coyote_time;
         p->rising = false;
@@ -1237,7 +1295,7 @@ void scene_platformer_update(SceneEntity *entity, float dt) {
     want_jump = p->jump_pressed || p->buffer_left > 0.0f;
     if (want_jump && (p->grounded || p->coyote_left > 0.0f)) {
         /* The speed that reaches jump_height against this body's gravity. */
-        const float gravity = fabsf(SCENE_GRAVITY_Y * b2Body_GetGravityScale(entity->body)) * SCENE_PIXELS_PER_METER;
+        const float gravity = fabsf(SCENE_GRAVITY_Y * b2Body_GetGravityScale(body)) * SCENE_PIXELS_PER_METER;
         vy = -sqrtf(2.0f * gravity * p->jump_height);
         p->grounded = false;
         p->coyote_left = 0.0f;
@@ -1258,7 +1316,7 @@ void scene_platformer_update(SceneEntity *entity, float dt) {
     vy = fminf(vy, p->max_fall_speed);
 
     p->jump_pressed = false;
-    b2Body_SetLinearVelocity(entity->body, (b2Vec2){vx / SCENE_PIXELS_PER_METER, vy / SCENE_PIXELS_PER_METER});
+    b2Body_SetLinearVelocity(body, (b2Vec2){vx / SCENE_PIXELS_PER_METER, vy / SCENE_PIXELS_PER_METER});
 }
 #endif
 )GEN",

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <compare>
 #include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -24,7 +26,7 @@
 //                paths (raylib.h via $RAYLIB_INCLUDE or $RAYLIB_SRC)
 //   bin/         made by the Makefile: bin/<project>(.exe), objects in bin/obj/
 //
-//   <id>.h / <id>.c       typedef struct <Id>Scene { SceneTransform world; SceneEntity ground; ... } <Id>Scene;
+//   <id>.h / <id>.c       typedef struct <Id>Scene { SceneTransform world; SceneSpriteEntity ground; ... } <Id>Scene;
 //                         scene_<id>_init, and as the scene needs them _update_poses / _draw
 //                         (entities), _update_ui / _draw_ui (UI elements), _step / _deinit
 //                         (physics bodies)
@@ -43,6 +45,20 @@
 // computed at runtime with the editor's rules, so the game draws what the editor shows.
 // Scene coordinates are kept: (0, 0) is the scene origin, shown at the centre of the view.
 
+// The fields an exported entity has besides its transform and pose, from its components.
+// Each combination a project uses is a struct type in scene_common.h, named by
+// entityTypeName: { } -> SceneEntity, {sprite} -> SceneSpriteEntity, ...
+struct EntityFields {
+    bool sprite = false;     // sprite and visible
+    bool collider = false;   // collider
+    bool body = false;       // body: a rigidbody or a collider, with physics on
+    bool platformer = false; // platformer: a platformer controller on a dynamic body
+
+    auto operator<=>(const EntityFields&) const = default;
+};
+
+std::string entityTypeName(EntityFields fields);
+
 // What the SceneManager (and the debug exporter) need to know about an exported scene.
 struct ExportedScene {
     std::string name;                   // the scene's name
@@ -55,6 +71,7 @@ struct ExportedScene {
     std::vector<std::string> entities;  // entity fields, in drawing order
     std::vector<std::string> colliders; // fields of entities with a box collider
     std::vector<std::string> elements;  // UI element fields, parents first
+    std::set<EntityFields> entityTypes; // the entity struct types it uses
 };
 
 // Identifier part of a scene's C names and file names: letters, digits and '_'
@@ -81,9 +98,10 @@ bool exportScene(const Scene& scene, const std::string& sceneName, const std::fi
 // Writes <outDir>/utils/scene_common.h and .c, the code shared by every exported scene.
 // The project's design resolution (SCENE_DESIGN_WIDTH/HEIGHT) and scale mode are baked in:
 // only that mode's code is exported. With physics enabled, the runtime includes Box2D
-// (SCENE_PHYSICS 1).
+// (SCENE_PHYSICS 1). `entityTypes` are the entity struct types the scenes use.
 bool writeSceneCommon(const std::filesystem::path& outDir, const DisplaySettings& display,
-                      const PhysicsSettings& physics, std::string& error);
+                      const PhysicsSettings& physics, const std::set<EntityFields>& entityTypes,
+                      std::string& error);
 
 // Writes <outDir>/generated/scene_manager.h and .c: the SceneId enum and the SceneManager, in the
 // order given, and SCENE_ID_START, the scene the game starts in: `startScene` (a scene name),

@@ -45,8 +45,8 @@ that's roughly 6 to 640 pixels.
 
 `scene_<name>_init` creates the scene's Box2D world (`physics_world`) and a body for every
 entity with a rigidbody or a box collider, at its place in the scene. Each body is in that
-entity's `body` field. Bodies and shapes carry their `SceneEntity *` as user data, so Box2D
-events and queries lead back to the entity.
+entity's `body` field. Bodies and shapes carry their entity's `SceneEntity *` (`&e.entity`)
+as user data, so Box2D events and queries lead back to the entity.
 
 **Each frame**, `scene_<name>_step(s, dt)` (or `scene_manager_update`) runs fixed 1/60 s
 steps for the time that passed, then writes dynamic and kinematic bodies back into their
@@ -64,18 +64,20 @@ Use the Box2D API on `entity.body`. Box2D works in metres: `scene_to_meters` and
 `scene_to_scene_units` convert from and to scene units.
 
 ```c
-static void player_controls(SceneEntity *player) {
-    b2Vec2 velocity = b2Body_GetLinearVelocity(player->body); /* metres per second */
+static void player_controls(b2BodyId body) {
+    b2Vec2 velocity = b2Body_GetLinearVelocity(body); /* metres per second */
     velocity.x = 0.0f;
     if (IsKeyDown(KEY_LEFT)) velocity.x = -5.0f;
     if (IsKeyDown(KEY_RIGHT)) velocity.x = 5.0f;
     if (IsKeyPressed(KEY_SPACE)) velocity.y = -6.0f; /* jump: y points down */
-    b2Body_SetLinearVelocity(player->body, velocity);
+    b2Body_SetLinearVelocity(body, velocity);
 }
 
-static void teleport(SceneEntity *e, Vector2 to) {
-    b2Body_SetTransform(e->body, scene_to_meters(to), b2Body_GetRotation(e->body));
+static void teleport(b2BodyId body, Vector2 to) {
+    b2Body_SetTransform(body, scene_to_meters(to), b2Body_GetRotation(body));
 }
+
+player_controls(level.player.body);
 ```
 
 Changing an entity's transform doesn't move its body: the next step writes the body's place
@@ -102,8 +104,8 @@ right with **A / D** or the arrow keys, jump with **Space**, **W** or **Up**.
   Rigidbody's Gravity), so a full jump reaches Jump Height whatever the gravity is.
 - **Walls:** set the character's collider friction to 0, or it sticks to walls it runs into.
 - **In the exported code:** the settings and the state are in `entity.platformer`, a
-  `ScenePlatformer`. The scene's `_step` calls `scene_platformer_update(&entity, dt)` before
-  stepping the physics.
+  `ScenePlatformer`. The scene's `_step` calls
+  `scene_platformer_update(&entity.platformer, entity.body, dt)` before stepping the physics.
 
 **Reading its state**, e.g. to pick an animation:
 
@@ -130,8 +132,8 @@ e.g. `level.player.platformer.jump_height = 200.0f;` for a power-up.
 
 ## Triggers and contacts
 
-Read Box2D's events after a step. Shapes carry their `SceneEntity *`, so compare with your
-scene's fields:
+Read Box2D's events after a step. Shapes carry their entity's `SceneEntity *`, so compare
+with your scene's fields' `entity`:
 
 ```c
 static void collect_coin(LevelScene *level) {
@@ -140,7 +142,7 @@ static void collect_coin(LevelScene *level) {
     for (i = 0; i < events.beginCount; ++i) {
         SceneEntity *trigger = b2Shape_GetUserData(events.beginEvents[i].sensorShapeId);
         SceneEntity *visitor = b2Shape_GetUserData(events.beginEvents[i].visitorShapeId);
-        if (trigger == &level->coin && visitor == &level->player) {
+        if (trigger == &level->coin.entity && visitor == &level->player.entity) {
             level->coin.visible = false;
             b2Body_Disable(level->coin.body);
         }
