@@ -448,6 +448,33 @@ bool isTextEditing() {
     return g.active && g.editing;
 }
 
+namespace {
+// While dragging a value: at the left or right edge of the screen (the monitor the editor is
+// on), the cursor jumps to the other edge, so the drag can go on as far as needed. Positions
+// keep arriving outside the window because GLFW captures the mouse while a button is down.
+// raylib's SetMousePosition also resets the mouse delta, so the jump itself doesn't count.
+void wrapCursorAtScreenEdges() {
+    constexpr float kMargin = 2.0f; // pixels from the edge that count as reaching it
+    const int monitor = GetCurrentMonitor();
+    const Vector2 monitorPos = GetMonitorPosition(monitor);
+    const float left = monitorPos.x;
+    const float right = monitorPos.x + static_cast<float>(GetMonitorWidth(monitor)) - 1.0f;
+    const Vector2 window = GetWindowPosition();
+    const float mouseX = GetMousePosition().x * theme::uiScale(); // window pixels
+    const float mouseY = GetMousePosition().y * theme::uiScale();
+    const float screenX = window.x + mouseX;
+    float to = screenX;
+    if (screenX <= left + kMargin) {
+        to = right - kMargin - 1.0f;
+    } else if (screenX >= right - kMargin) {
+        to = left + kMargin + 1.0f;
+    }
+    if (to != screenX) {
+        SetMousePosition(static_cast<int>(to - window.x), static_cast<int>(mouseY));
+    }
+}
+} // namespace
+
 bool dragFloat(Rectangle bounds, float* value, float speed, const char* prefix, const char* format) {
     const void* id = value;
     const bool isActive = g.active == id;
@@ -494,6 +521,7 @@ bool dragFloat(Rectangle bounds, float* value, float speed, const char* prefix, 
                     *value += delta;
                     changed = true;
                 }
+                wrapCursorAtScreenEdges();
             }
         } else if (!g.dragging) {
             startTextEdit(id, TextFormat("%g", *value), true); // plain number, no units
