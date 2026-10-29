@@ -24,6 +24,12 @@
     },
     {
       "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
       "name": "Entity 1",
       "origin": 0,
       "components": {
@@ -50,14 +56,16 @@
             255,
             255,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
     {
-      "id": 2,
+      "id": 3,
       "name": "Entity 2",
-      "origin": 1,
+      "origin": 2,
       "components": {
         "transform": {
           "position": [
@@ -82,9 +90,12 @@
             255,
             255,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
             0.0,
             0.0
@@ -93,7 +104,11 @@
             64.0,
             64.0
           ],
-          "isTrigger": false
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     }

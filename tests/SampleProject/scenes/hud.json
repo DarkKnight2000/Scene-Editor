@@ -56,7 +56,9 @@
             150,
             80,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -85,7 +87,8 @@
           "size": [
             360.0,
             36.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -122,7 +125,8 @@
           "size": [
             -4.0,
             -8.0
-          ]
+          ],
+          "singleAnchor": false
         },
         "uiRectangle": {
           "color": [
@@ -159,7 +163,8 @@
           "size": [
             240.0,
             240.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -196,7 +201,8 @@
           "size": [
             0.0,
             80.0
-          ]
+          ],
+          "singleAnchor": false
         },
         "uiRectangle": {
           "color": [
@@ -233,7 +239,8 @@
           "size": [
             400.0,
             240.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -253,29 +260,30 @@
         "uiRectTransform": {
           "anchorMin": [
             0.5,
-            0
+            0.0
           ],
           "anchorMax": [
             0.5,
-            0
+            0.0
           ],
           "pivot": [
             0.5,
-            0
+            0.0
           ],
           "position": [
-            0,
-            24
+            0.0,
+            24.0
           ],
           "size": [
-            360,
-            48
-          ]
+            360.0,
+            48.0
+          ],
+          "singleAnchor": true
         },
         "uiLabel": {
           "text": "Score 0",
-          "fontSize": 40,
-          "spacing": 4,
+          "fontSize": 40.0,
+          "spacing": 4.0,
           "color": [
             255,
             255,
@@ -294,30 +302,31 @@
       "components": {
         "uiRectTransform": {
           "anchorMin": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "anchorMax": [
-            1,
-            0
+            1.0,
+            0.0
           ],
           "pivot": [
             0.5,
-            0
+            0.0
           ],
           "position": [
-            0,
-            16
+            0.0,
+            16.0
           ],
           "size": [
-            -32,
-            60
-          ]
+            -32.0,
+            60.0
+          ],
+          "singleAnchor": false
         },
         "uiLabel": {
           "text": "PAUSED",
-          "fontSize": 48,
-          "spacing": 4,
+          "fontSize": 48.0,
+          "spacing": 4.0,
           "color": [
             40,
             30,

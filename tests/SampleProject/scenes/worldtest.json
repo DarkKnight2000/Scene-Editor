@@ -16,12 +16,20 @@
           "scale": [
             1.5,
             1.5
-          ]
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
         }
       }
     },
     {
       "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
       "name": "Entity 1",
       "origin": 0,
       "components": {
@@ -34,7 +42,9 @@
           "scale": [
             1.0,
             1.0
-          ]
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
         },
         "sprite": {
           "size": [
@@ -46,12 +56,14 @@
             255,
             255,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
     {
-      "id": 2,
+      "id": 3,
       "name": "Entity 2",
       "origin": 0,
       "components": {
@@ -64,7 +76,9 @@
           "scale": [
             1.0,
             1.0
-          ]
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
         },
         "sprite": {
           "size": [
@@ -76,7 +90,9 @@
             255,
             255,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     }

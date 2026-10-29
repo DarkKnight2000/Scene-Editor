@@ -59,6 +59,22 @@
           ],
           "shape": "rectangle",
           "export": true
+        },
+        "collider": {
+          "shape": "box",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            140.0,
+            100.0
+          ],
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -93,6 +109,22 @@
           ],
           "shape": "circle",
           "export": true
+        },
+        "collider": {
+          "shape": "circle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            64.0,
+            64.0
+          ],
+          "radius": 60.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -161,6 +193,22 @@
           ],
           "shape": "triangle",
           "export": true
+        },
+        "collider": {
+          "shape": "triangle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            140.0,
+            120.0
+          ],
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -195,6 +243,22 @@
           ],
           "shape": "triangle",
           "export": true
+        },
+        "collider": {
+          "shape": "triangle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            140.0,
+            120.0
+          ],
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -229,6 +293,22 @@
           ],
           "shape": "triangle",
           "export": true
+        },
+        "collider": {
+          "shape": "triangle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            140.0,
+            120.0
+          ],
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -263,6 +343,22 @@
           ],
           "shape": "rectangle",
           "export": true
+        },
+        "collider": {
+          "shape": "box",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            100.0,
+            100.0
+          ],
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -297,6 +393,22 @@
           ],
           "shape": "circle",
           "export": true
+        },
+        "collider": {
+          "shape": "circle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            64.0,
+            64.0
+          ],
+          "radius": 20.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     }

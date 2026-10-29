@@ -56,7 +56,9 @@
             90,
             140,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -88,7 +90,9 @@
             210,
             60,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -120,7 +124,9 @@
             240,
             150,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -152,7 +158,9 @@
             153,
             76,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -184,7 +192,9 @@
             160,
             110,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -216,7 +226,9 @@
             60,
             50,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -248,7 +260,9 @@
             70,
             40,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -280,7 +294,9 @@
             75,
             40,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -312,7 +328,9 @@
             120,
             60,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
@@ -344,9 +362,12 @@
             110,
             220,
             255
-          ]
+          ],
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
             0.0,
             0.0
@@ -355,7 +376,11 @@
             28.0,
             40.0
           ],
-          "isTrigger": false
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
         }
       }
     },
@@ -384,7 +409,8 @@
           "size": [
             -67.0,
             88.0
-          ]
+          ],
+          "singleAnchor": false
         }
       }
     }

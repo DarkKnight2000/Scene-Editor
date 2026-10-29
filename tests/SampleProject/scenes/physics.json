@@ -9,13 +9,13 @@
       "components": {
         "transform": {
           "position": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
@@ -35,21 +35,21 @@
       "components": {
         "transform": {
           "position": [
-            0,
-            280
+            0.0,
+            280.0
           ],
           "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            1200,
-            40
+            1200.0,
+            40.0
           ],
           "tint": [
             70,
@@ -57,20 +57,23 @@
             80,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            1200,
-            40
+            1200.0,
+            40.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         }
       }
@@ -82,21 +85,21 @@
       "components": {
         "transform": {
           "position": [
-            -347,
-            133
+            -347.0,
+            133.0
           ],
-          "rotation": 20,
+          "rotation": 20.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            400,
-            20
+            400.0,
+            20.0
           ],
           "tint": [
             110,
@@ -104,20 +107,23 @@
             120,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            400,
-            20
+            400.0,
+            20.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         }
       }
@@ -129,21 +135,21 @@
       "components": {
         "transform": {
           "position": [
-            200,
-            200
+            200.0,
+            200.0
           ],
           "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            174,
-            120
+            174.0,
+            120.0
           ],
           "tint": [
             240,
@@ -151,20 +157,23 @@
             80,
             60
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            174,
-            120
+            174.0,
+            120.0
           ],
+          "radius": 32.0,
           "isTrigger": true,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         }
       }
@@ -176,21 +185,21 @@
       "components": {
         "transform": {
           "position": [
-            53,
-            240
+            53.0,
+            240.0
           ],
-          "rotation": 0,
+          "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
           "tint": [
             90,
@@ -198,20 +207,23 @@
             230,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -231,21 +243,21 @@
       "components": {
         "transform": {
           "position": [
-            53,
-            200
+            53.0,
+            200.0
           ],
-          "rotation": 0,
+          "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
           "tint": [
             120,
@@ -253,20 +265,23 @@
             205,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -286,21 +301,21 @@
       "components": {
         "transform": {
           "position": [
-            53,
-            160
+            53.0,
+            160.0
           ],
-          "rotation": 0,
+          "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
           "tint": [
             150,
@@ -308,20 +323,23 @@
             180,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -341,21 +359,21 @@
       "components": {
         "transform": {
           "position": [
-            53,
-            120
+            53.0,
+            120.0
           ],
-          "rotation": 0,
+          "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
           "tint": [
             180,
@@ -363,20 +381,23 @@
             155,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -396,21 +417,21 @@
       "components": {
         "transform": {
           "position": [
-            53,
-            80
+            53.0,
+            80.0
           ],
-          "rotation": 0,
+          "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
           "tint": [
             210,
@@ -418,20 +439,23 @@
             130,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            40,
-            40
+            40.0,
+            40.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
+          "friction": 0.6000000238418579,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -451,21 +475,21 @@
       "components": {
         "transform": {
           "position": [
-            213,
-            -133
+            213.0,
+            -133.0
           ],
-          "rotation": 30,
+          "rotation": 30.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            34,
-            34
+            34.0,
+            34.0
           ],
           "tint": [
             230,
@@ -473,21 +497,24 @@
             160,
             255
           ],
-          "shape": "rectangle"
+          "shape": "circle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "circle",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            34,
-            34
+            64.0,
+            64.0
           ],
+          "radius": 17.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.6,
-          "restitution": 0.8
+          "friction": 0.6000000238418579,
+          "restitution": 0.800000011920929
         },
         "rigidbody": {
           "type": "dynamic",
@@ -506,21 +533,21 @@
       "components": {
         "transform": {
           "position": [
-            -400,
-            -167
+            -400.0,
+            -167.0
           ],
           "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            46,
-            46
+            46.0,
+            46.0
           ],
           "tint": [
             240,
@@ -528,20 +555,23 @@
             60,
             255
           ],
-          "shape": "rectangle"
+          "shape": "triangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "triangle",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            46,
-            46
+            46.0,
+            46.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
-          "friction": 0.2,
+          "friction": 0.20000000298023224,
           "restitution": 0.0
         },
         "rigidbody": {
@@ -561,21 +591,21 @@
       "components": {
         "transform": {
           "position": [
-            -100,
-            237
+            -100.0,
+            237.0
           ],
           "rotation": 0.0,
           "scale": [
-            1,
-            1
+            1.0,
+            1.0
           ],
           "inheritRotation": true,
           "inheritScale": true
         },
         "sprite": {
           "size": [
-            26,
-            46
+            26.0,
+            46.0
           ],
           "tint": [
             80,
@@ -583,17 +613,20 @@
             230,
             255
           ],
-          "shape": "rectangle"
+          "shape": "rectangle",
+          "export": true
         },
-        "boxCollider": {
+        "collider": {
+          "shape": "box",
           "offset": [
-            0,
-            0
+            0.0,
+            0.0
           ],
           "size": [
-            26,
-            46
+            26.0,
+            46.0
           ],
+          "radius": 32.0,
           "isTrigger": false,
           "density": 1.0,
           "friction": 0.0,
@@ -610,12 +643,120 @@
         "platformer": {
           "moveSpeed": 300.0,
           "acceleration": 2400.0,
-          "airControl": 0.6,
+          "airControl": 0.6000000238418579,
           "jumpHeight": 120.0,
-          "coyoteTime": 0.1,
-          "jumpBuffer": 0.12,
+          "coyoteTime": 0.10000000149011612,
+          "jumpBuffer": 0.11999999731779099,
           "jumpCut": 0.5,
           "maxFallSpeed": 900.0
+        }
+      }
+    },
+    {
+      "id": 13,
+      "name": "Wedge",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            420.0,
+            230.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            120.0,
+            60.0
+          ],
+          "tint": [
+            150,
+            120,
+            90,
+            255
+          ],
+          "shape": "triangle",
+          "export": true
+        },
+        "collider": {
+          "shape": "triangle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            120.0,
+            60.0
+          ],
+          "radius": 32.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.0
+        }
+      }
+    },
+    {
+      "id": 14,
+      "name": "Ball",
+      "origin": 0,
+      "components": {
+        "transform": {
+          "position": [
+            412.0,
+            -60.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        },
+        "sprite": {
+          "size": [
+            36.0,
+            36.0
+          ],
+          "tint": [
+            240,
+            220,
+            90,
+            255
+          ],
+          "shape": "circle",
+          "export": true
+        },
+        "collider": {
+          "shape": "circle",
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            64.0,
+            64.0
+          ],
+          "radius": 18.0,
+          "isTrigger": false,
+          "density": 1.0,
+          "friction": 0.6000000238418579,
+          "restitution": 0.30000001192092896
+        },
+        "rigidbody": {
+          "type": "dynamic",
+          "gravityScale": 1.0,
+          "linearDamping": 0.0,
+          "angularDamping": 0.0,
+          "fixedRotation": false,
+          "isBullet": false
         }
       }
     }

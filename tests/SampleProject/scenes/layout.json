@@ -53,7 +53,8 @@
           "size": [
             640.0,
             80.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -96,7 +97,8 @@
           "size": [
             120.0,
             56.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -146,7 +148,8 @@
           "size": [
             160.0,
             56.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -196,7 +199,8 @@
           "size": [
             20.0,
             20.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -233,7 +237,8 @@
           "size": [
             120.0,
             56.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -283,7 +288,8 @@
           "size": [
             240.0,
             400.0
-          ]
+          ],
+          "singleAnchor": true
         },
         "uiRectangle": {
           "color": [
@@ -326,7 +332,8 @@
           "size": [
             -20.0,
             48.0
-          ]
+          ],
+          "singleAnchor": false
         },
         "uiRectangle": {
           "color": [
@@ -376,7 +383,8 @@
           "size": [
             -20.0,
             48.0
-          ]
+          ],
+          "singleAnchor": false
         },
         "uiRectangle": {
           "color": [
@@ -426,7 +434,8 @@
           "size": [
             -20.0,
             48.0
-          ]
+          ],
+          "singleAnchor": false
         },
         "uiRectangle": {
           "color": [
@@ -476,7 +485,8 @@
           "size": [
             -20.0,
             48.0
-          ]
+          ],
+          "singleAnchor": false
         },
         "uiRectangle": {
           "color": [

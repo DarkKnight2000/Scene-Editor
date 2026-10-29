@@ -24,6 +24,12 @@
     },
     {
       "id": 1,
+      "name": "Canvas",
+      "canvas": true,
+      "components": {}
+    },
+    {
+      "id": 2,
       "name": "Entity 5",
       "origin": 0,
       "components": {
@@ -43,7 +49,7 @@
       }
     },
     {
-      "id": 2,
+      "id": 3,
       "name": "Entity 6",
       "origin": 0,
       "components": {
@@ -63,7 +69,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 4,
       "name": "Entity 1",
       "origin": 0,
       "components": {
@@ -90,33 +96,15 @@
             255,
             255,
             255
-          ]
-        }
-      }
-    },
-    {
-      "id": 4,
-      "name": "Entity 2",
-      "origin": 3,
-      "components": {
-        "transform": {
-          "position": [
-            0.0,
-            0.0
           ],
-          "rotation": 0.0,
-          "scale": [
-            1.0,
-            1.0
-          ],
-          "inheritRotation": true,
-          "inheritScale": true
+          "shape": "rectangle",
+          "export": true
         }
       }
     },
     {
       "id": 5,
-      "name": "Entity 3",
+      "name": "Entity 2",
       "origin": 4,
       "components": {
         "transform": {
@@ -136,8 +124,8 @@
     },
     {
       "id": 6,
-      "name": "Entity 4",
-      "origin": 3,
+      "name": "Entity 3",
+      "origin": 5,
       "components": {
         "transform": {
           "position": [
@@ -156,8 +144,28 @@
     },
     {
       "id": 7,
+      "name": "Entity 4",
+      "origin": 4,
+      "components": {
+        "transform": {
+          "position": [
+            0.0,
+            0.0
+          ],
+          "rotation": 0.0,
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "inheritRotation": true,
+          "inheritScale": true
+        }
+      }
+    },
+    {
+      "id": 8,
       "name": "Entity 7",
-      "origin": 2,
+      "origin": 3,
       "components": {
         "transform": {
           "position": [
