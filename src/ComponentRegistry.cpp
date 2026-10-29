@@ -197,7 +197,8 @@ json toJson(const UIRectTransformComponent& t) {
             {"anchorMax", toJson(t.anchorMax)},
             {"pivot", toJson(t.pivot)},
             {"position", toJson(t.position)},
-            {"size", toJson(t.size)}};
+            {"size", toJson(t.size)},
+            {"singleAnchor", t.singleAnchor}};
 }
 
 void fromJson(const json& j, UIRectTransformComponent& t) {
@@ -206,6 +207,9 @@ void fromJson(const json& j, UIRectTransformComponent& t) {
     read(j, "pivot", t.pivot);
     read(j, "position", t.position);
     read(j, "size", t.size);
+    // Older files: from the anchors.
+    t.singleAnchor = t.anchorMin.x == t.anchorMax.x && t.anchorMin.y == t.anchorMax.y;
+    read(j, "singleAnchor", t.singleAnchor);
 }
 
 json toJson(const UILabelComponent& l) {
@@ -481,10 +485,27 @@ void drawUIRectTransform(Scene& scene, Entity& e, ui::PropertyGrid& grid) {
     labels.push_back("Custom");
     if (ui::combo(grid.row("Anchor"), &t.anchorMin, labels, &current) && current < kCustomPreset) {
         applyAnchorPreset(t, kAnchorPresets[current]);
+        t.singleAnchor = sameVector(t.anchorMin, t.anchorMax); // a stretch preset needs two
     }
 
-    vec2Row(grid, "Anchor Min", t.anchorMin, 0.01f);
-    vec2Row(grid, "Anchor Max", t.anchorMax, 0.01f);
+    // Single anchor: Anchor Max follows Anchor Min. Turning it on keeps the element where it is.
+    bool single = t.singleAnchor;
+    ui::checkbox(grid.row("Single Anchor"), &single);
+    if (single != t.singleAnchor) {
+        const Rectangle before = scene.uiRect(e.id, scene.uiReferenceSize());
+        t.singleAnchor = single;
+        if (single) {
+            t.anchorMax = t.anchorMin;
+            scene.setUIRect(e.id, before, scene.uiReferenceSize());
+        }
+    }
+    if (t.singleAnchor) {
+        vec2Row(grid, "Anchor Point", t.anchorMin, 0.01f);
+        t.anchorMax = t.anchorMin;
+    } else {
+        vec2Row(grid, "Anchor Min", t.anchorMin, 0.01f);
+        vec2Row(grid, "Anchor Max", t.anchorMax, 0.01f);
+    }
     vec2Row(grid, "Pivot", t.pivot, 0.01f);
     vec2Row(grid, "Offset", t.position, 0.5f);
     vec2Row(grid, "Size", t.size, 0.5f);

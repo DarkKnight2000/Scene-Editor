@@ -116,6 +116,8 @@ struct UIRectTransformComponent {
     Vector2 pivot{0.5f, 0.5f};
     Vector2 position{0.0f, 0.0f};
     Vector2 size{200.0f, 100.0f};
+    // Editor only: anchorMax follows anchorMin (one anchor point, no stretching).
+    bool singleAnchor = true;
 };
 
 // A filled rectangle covering the element's UIRectTransform.
