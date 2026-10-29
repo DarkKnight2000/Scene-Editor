@@ -186,22 +186,7 @@ To use a raylib source checkout you already have instead, pass its folder:
 | `SceneEditor --export <project>` | export a project without opening the editor |
 | `SceneEditor --version` | print the version |
 
-### Using the editor
-
-| In | Do | To |
-|---|---|---|
-| Scene | click | select |
-| Scene | drag | move the entity or UI element under the mouse |
-| Scene | drag a corner handle | scale the selected entity about its centre (Shift: keep proportions), or resize the selected UI element |
-| Scene | right drag, wheel, F | pan, zoom, frame the design area |
-| Scene | Esc while dragging | cancel the drag |
-| Details | drag a number | change it (Shift: finer, Ctrl: coarser); the cursor wraps at the screen's edges |
-| Details | click a number | type a value |
-| Anywhere | Ctrl+Z, Ctrl+Y | undo, redo |
-| Anywhere | Ctrl+S, Ctrl+E | save, export |
-| Anywhere | F5, Shift+F5 | play, stop |
-| Anywhere | Ctrl+=, Ctrl+-, Ctrl+0 | bigger, smaller, back to 100% |
-| Anywhere | F11 | full screen |
+**UI scale:** Ctrl+= and Ctrl+- make the editor bigger or smaller; Ctrl+0 goes back to 100%.
 
 ### Windows installer
 
