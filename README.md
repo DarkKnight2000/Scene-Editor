@@ -1,6 +1,4 @@
-<img src="res/icon.png" alt="" width="96" align="right">
-
-# Scene Editor
+# <img src="res/icon.png" alt="" width="40"> Scene Editor
 
 _Yep, this is vibecoded software: the editor itself is AI-generated code. The code it
 generates for your game, though, comes from a fixed set of rules applied to the layouts
