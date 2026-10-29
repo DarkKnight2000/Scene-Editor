@@ -93,10 +93,6 @@ typedef struct SceneUIRectTransform {
 | (0, 1) → (1, 1) | stretched along the bottom edge |
 | (0, 0) → (1, 1) | fills the parent |
 
-**In the editor**, the **Anchor** dropdown sets these for you: a corner, an edge, the
-centre, or a stretch. With **Single Anchor** ticked, Anchor Max follows Anchor Min (one
-**Anchor Point**, pinned on both axes); untick it to set two anchors and stretch.
-
 You can change `layout` at runtime, e.g. to slide a panel in; the next `update_ui` uses it.
 
 ## Linear layouts
