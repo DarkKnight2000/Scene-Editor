@@ -31,6 +31,15 @@ EndDrawing();
 The scene origin is always at the centre of the window, so the visible area is centred
 on it.
 
+## Centring a level
+
+- **Centred:** place the level at (0, 0). It stays at the window's centre on every screen.
+- **Filling the screen:** set the design resolution to the level's size plus a margin.
+  With Expand or Fit, that whole area always fits the window, so the level is as big as
+  the window allows, never cropped or stretched.
+
+See [Grid levels](grid-levels.md) for a worked example.
+
 ## Mouse and window coordinates
 
 `scene_camera()` returns the `Camera2D` that `scene_begin` uses. You can pass it to

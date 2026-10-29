@@ -14,6 +14,7 @@ placements and draws its own things there, and the scene scales to any window.
 | [Screen scaling](scaling.md) | Design resolution, Expand / Fit / Fill, mouse to scene coordinates |
 | [UI](ui.md) | The Canvas, anchors, element rects for your own widgets, labels |
 | [Physics](physics.md) | Box2D bodies from colliders and rigidbodies |
+| [Grid levels](grid-levels.md) | A centred board of rows and columns, generated in code, with a player moving on it |
 | [API reference](api-reference.md) | Every type, macro and function in one place |
 
 ## A whole program

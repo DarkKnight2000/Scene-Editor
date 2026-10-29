@@ -101,10 +101,6 @@ int main(void) {
 }
 ```
 
-![The demo scene in the exported game: the same village, with the player standing on the ground and the HUD laid out for the window](docs/images/game-demo.png)
-
-![The exported physics scene after two seconds: the boxes have stacked, the triangle has slid down the ramp and the ball has rolled off the wedge](docs/images/game-physics.png)
-
 Using the SceneManager, or a scene's `scene_<name>_draw()`, is optional. You can call
 `scene_<name>_update_poses()` (and `scene_<name>_step()` for physics) to update the
 entity positions, and draw your own entities with them.
@@ -190,7 +186,22 @@ To use a raylib source checkout you already have instead, pass its folder:
 | `SceneEditor --export <project>` | export a project without opening the editor |
 | `SceneEditor --version` | print the version |
 
-**UI scale:** Ctrl+= and Ctrl+- make the editor bigger or smaller; Ctrl+0 goes back to 100%.
+### Using the editor
+
+| In | Do | To |
+|---|---|---|
+| Scene | click | select |
+| Scene | drag | move the entity or UI element under the mouse |
+| Scene | drag a corner handle | scale the selected entity about its centre (Shift: keep proportions), or resize the selected UI element |
+| Scene | right drag, wheel, F | pan, zoom, frame the design area |
+| Scene | Esc while dragging | cancel the drag |
+| Details | drag a number | change it (Shift: finer, Ctrl: coarser); the cursor wraps at the screen's edges |
+| Details | click a number | type a value |
+| Anywhere | Ctrl+Z, Ctrl+Y | undo, redo |
+| Anywhere | Ctrl+S, Ctrl+E | save, export |
+| Anywhere | F5, Shift+F5 | play, stop |
+| Anywhere | Ctrl+=, Ctrl+-, Ctrl+0 | bigger, smaller, back to 100% |
+| Anywhere | F11 | full screen |
 
 ### Windows installer
 
