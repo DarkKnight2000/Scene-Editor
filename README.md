@@ -19,7 +19,7 @@ scale well, because my calculations assumed one reference screen size and player
 screens differ. This is my attempt to automate most of that maths in a way that scales
 well, while staying out of the main game code.
 
-![The editor with a physics scene: entities on the left, the scene in the middle, the selected ramp's components on the right](docs/images/editor-physics.png)
+![The editor with the sample project's demo scene, a village at sunset: entities on the left, the scene with its HUD in the middle, the selected house's components on the right](docs/images/editor-demo.png)
 
 ## What it does
 
@@ -40,7 +40,11 @@ well, while staying out of the main game code.
   jump, coyote time, jump buffering and variable jump height, tuned in the editor.
 - **Play:** export, build and run the game from the editor (F5).
 
+![The physics scene, with the triangle wedge's collider selected among box, circle and triangle colliders](docs/images/editor-physics.png)
+
 ![The HUD scene previewed on a 4:3 screen, with the Minimap element pinned to the top-right corner](docs/images/editor-ui.png)
+
+The screenshots are of the sample project in [tests/SampleProject](tests/SampleProject).
 
 ## The exported game
 
@@ -97,7 +101,9 @@ int main(void) {
 }
 ```
 
-![The exported physics scene running, after the boxes have fallen](docs/images/game-physics.png)
+![The demo scene in the exported game: the same village, with the player standing on the ground and the HUD laid out for the window](docs/images/game-demo.png)
+
+![The exported physics scene after two seconds: the boxes have stacked, the triangle has slid down the ramp and the ball has rolled off the wedge](docs/images/game-physics.png)
 
 Using the SceneManager, or a scene's `scene_<name>_draw()`, is optional. You can call
 `scene_<name>_update_poses()` (and `scene_<name>_step()` for physics) to update the
