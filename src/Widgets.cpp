@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-// Defined in external/raygui/raygui_impl.c.
+// Defined in subprojects/raylib/raygui_impl.c.
 extern "C" void GuiSetTextBoxCursor(int index);
 
 namespace ui {

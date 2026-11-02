@@ -11,8 +11,13 @@ project(
   ],
 )
 
-subdir('external/raylib')
-subdir('external/raygui')
+# raylib and raygui (subprojects/raylib); -Draylib:raylib_dir=... uses a local raylib checkout.
+raylib_proj = subproject('raylib')
+raylib_dep = raylib_proj.get_variable('raylib_dep')
+raygui_dep = raylib_proj.get_variable('raygui_dep')
+raylib_dir = raylib_proj.get_variable('raylib_dir')
+raylib_src = raylib_proj.get_variable('raylib_src')
+raylib_lib = raylib_proj.get_variable('raylib_lib')
 
 json_dep = dependency('nlohmann_json')
 
@@ -40,7 +45,7 @@ configure_file(output : 'PlayDefaults.h', configuration : play_conf)
 # Default Box2D folder for new projects (Project Settings can point elsewhere, e.g.
 # after the editor's source tree moves). Exports with physics copy Box2D from it.
 paths_conf = configuration_data()
-paths_conf.set_quoted('SCENE_EDITOR_BOX2D_DIR', (meson.current_source_dir() / 'external/box2d').replace('\\', '/'))
+paths_conf.set_quoted('SCENE_EDITOR_BOX2D_DIR', (meson.current_source_dir() / 'subprojects/box2d').replace('\\', '/'))
 configure_file(output : 'EditorPaths.h', configuration : paths_conf)
 
 # The editor's version (--version), from project() above.
@@ -127,7 +132,7 @@ if host_machine.system() == 'windows' and makensis.found()
                '-DEXE=' + editor_exe.full_path(),
                '-DICON=' + meson.current_source_dir() / 'res/SceneEditor.ico',
                '-DLICENSE=' + meson.current_source_dir() / 'LICENSE',
-               '-DBOX2D_DIR=' + meson.current_source_dir() / 'external/box2d',
+               '-DBOX2D_DIR=' + meson.current_source_dir() / 'subprojects/box2d',
                '-DRAYLIB_SRC=' + raylib_src,
                '-DRAYLIB_LICENSE=' + raylib_dir / 'LICENSE',
                '-DOUTFILE=' + meson.current_build_dir() / 'SceneEditor-' + meson.project_version() + '-setup.exe',

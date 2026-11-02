@@ -65,7 +65,7 @@ struct Project {
     PhysicsSettings physics;
     // Box2D's folder (with include/ and src/), copied into exports when physics is on.
     // Relative paths start at the project folder. Defaults to the installed editor's box2d/,
-    // or in a development build to external/box2d.
+    // or in a development build to subprojects/box2d.
     std::string box2dDir = defaultBox2dDir();
 
     std::filesystem::path root() const { return file.parent_path(); }

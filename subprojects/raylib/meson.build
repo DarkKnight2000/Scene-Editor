@@ -1,8 +1,10 @@
-# Builds raylib as a static library from a source checkout.
+# Builds raylib and raygui as static libraries from a raylib source checkout.
 # Only the sources are read from raylib_dir; all objects land in this project's build dir.
 #
-# Without -Draylib_dir, the pinned raylib release below is downloaded once with git into
-# external/downloads/ (not tracked) and used from there.
+# Without -Draylib:raylib_dir, the pinned raylib release below is downloaded once with git
+# into subprojects/raylib/downloads/ (not tracked) and used from there.
+
+project('raylib', 'c', meson_version : '>=1.1.0')
 
 raylib_version = '6.0' # a tag of https://github.com/raysan5/raylib
 raylib_url = 'https://github.com/raysan5/raylib.git'
@@ -10,32 +12,31 @@ raylib_url = 'https://github.com/raysan5/raylib.git'
 fs = import('fs')
 raylib_dir = get_option('raylib_dir')
 # raylib_root: raylib_dir as sources and include_directories() can take it. A folder inside
-# the source tree must be relative, so for the downloaded copy it's relative to
-# external/raylib (and, being a sibling, external/raygui).
+# the source tree must be relative, so for the downloaded copy it's relative to this folder.
 raylib_root = raylib_dir
 if raylib_dir == ''
-  raylib_root = '../downloads/raylib-' + raylib_version
-  raylib_dir = meson.project_source_root() / 'external' / 'downloads' / 'raylib-' + raylib_version
+  raylib_root = 'downloads/raylib-' + raylib_version
+  raylib_dir = meson.current_source_dir() / raylib_root
   if not fs.is_file(raylib_dir / 'src' / 'raylib.h')
     if fs.exists(raylib_dir)
       error('"@0@" exists but has no src/raylib.h: delete it to download raylib again'.format(raylib_dir))
     endif
     git = find_program('git', required : false)
     if not git.found()
-      error('raylib not given and git not found to download it: install git, or set -Draylib_dir=path/to/raylib')
+      error('raylib not given and git not found to download it: install git, or set -Draylib:raylib_dir=path/to/raylib')
     endif
     message('Downloading raylib @0@ into @1@'.format(raylib_version, raylib_dir))
     clone = run_command(git, '-c', 'advice.detachedHead=false', 'clone', '--depth', '1', '--branch', raylib_version,
                         raylib_url, raylib_dir, check : false)
     if clone.returncode() != 0
-      error('Downloading raylib failed (set -Draylib_dir=path/to/raylib to use a local copy):\n' + clone.stderr())
+      error('Downloading raylib failed (set -Draylib:raylib_dir=path/to/raylib to use a local copy):\n' + clone.stderr())
     endif
   endif
 endif
 raylib_src = raylib_dir / 'src'
 
 if not fs.is_file(raylib_src / 'raylib.h')
-  error('raylib sources not found at "@0@" (set -Draylib_dir=...)'.format(raylib_dir))
+  error('raylib sources not found at "@0@" (set -Draylib:raylib_dir=...)'.format(raylib_dir))
 endif
 
 cc = meson.get_compiler('c')
@@ -82,4 +83,31 @@ raylib_dep = declare_dependency(
   link_with : raylib_lib,
   include_directories : raylib_inc,
   dependencies : raylib_deps,
+)
+
+# raygui (header-only), built into a static library. The header is read from raygui_dir.
+raygui_dir = get_option('raygui_dir')
+if raygui_dir == ''
+  raygui_dir = raylib_root / 'examples/core'
+endif
+
+if not fs.is_file(raygui_dir / 'raygui.h')
+  error('raygui.h not found in "@0@" (set -Draylib:raygui_dir=...)'.format(raygui_dir))
+endif
+
+raygui_inc = include_directories(raygui_dir, is_system : true)
+
+raygui_lib = static_library(
+  'raygui',
+  'raygui_impl.c',
+  c_args : cc.get_supported_arguments('-w'),
+  include_directories : raygui_inc,
+  dependencies : raylib_dep,
+  override_options : ['warning_level=0'],
+)
+
+raygui_dep = declare_dependency(
+  link_with : raygui_lib,
+  include_directories : raygui_inc,
+  dependencies : raylib_dep,
 )
