@@ -1,4 +1,4 @@
-# <img src="res/icon.png" alt="" width="40"> Scene Editor
+# <img src="res/icon.png" alt="" width="34"> Scene Editor
 
 _Yep, this is vibecoded software: the editor itself is AI-generated code. The code it
 generates for your game, though, comes from a fixed set of rules applied to the layouts
@@ -17,7 +17,7 @@ scale well, because my calculations assumed one reference screen size and player
 screens differ. This is my attempt to automate most of that maths in a way that scales
 well, while staying out of the main game code.
 
-![The editor with the sample project's demo scene, a village at sunset: entities on the left, the scene with its HUD in the middle, the selected house's components on the right](docs/images/editor-demo.png)
+![A tour: the physics scene and its triangle collider in the editor, the layout scene's toolbar previewed on 21:9 and 4:3 screens, then the exported game running the physics and laying out the UI as its window resizes](docs/images/showcase.gif)
 
 ## What it does
 
