@@ -116,7 +116,7 @@ executable(
   build_by_default : false,
 )
 
-# Windows installer (NSIS, installer/SceneEditor.nsi), from a release build with the C runtime
+# Windows installer (NSIS, tools/SceneEditor.nsi), from a release build with the C runtime
 # linked in, so it runs without the Visual C++ redistributable:
 #   meson setup build-release --buildtype=release -Db_vscrt=mt
 #   meson compile -C build-release installer      -> SceneEditor-<version>-setup.exe
@@ -136,7 +136,7 @@ if host_machine.system() == 'windows' and makensis.found()
                '-DRAYLIB_SRC=' + raylib_src,
                '-DRAYLIB_LICENSE=' + raylib_dir / 'LICENSE',
                '-DOUTFILE=' + meson.current_build_dir() / 'SceneEditor-' + meson.project_version() + '-setup.exe',
-               meson.current_source_dir() / 'installer/SceneEditor.nsi'],
+               meson.current_source_dir() / 'tools/SceneEditor.nsi'],
     depends : editor_exe,
   )
 endif
