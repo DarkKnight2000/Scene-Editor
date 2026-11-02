@@ -44,6 +44,13 @@ well, while staying out of the main game code.
 
 The screenshots are of the sample project in [tests/SampleProject](tests/SampleProject).
 
+## What it doesn't do
+
+It isn't a game engine like Godot or Unity, where you can build your entire game inside the
+editor with some scripting, and it has none of their advanced features. It's meant for
+blocking out your scenes visually; your game then uses the exported C code to draw your
+entities.
+
 ## The exported game
 
 This is what a minimal `main()` looks like with the generated code. The exported
@@ -105,6 +112,14 @@ entity positions, and draw your own entities with them.
 
 The guides in [docs/](docs/README.md) cover the exported code: scenes, entities, UI,
 scaling, physics and the full API.
+
+The exported game is a complete raylib program, mainly so that the **Play** button can run a
+preview. You can make your own changes inside the export folder: the export options in
+Project Settings stop the editor from overwriting the Makefile, `project_main.c`, the VS Code
+settings and `.gitignore` (the generated scene files are always replaced). But I suggest
+keeping your game's code *outside* the export folder, so you can be sure the editor never
+overwrites it. That also fits what this program is for: it's meant to be a helper, not the
+main program, which is one of the reasons its feature set is limited.
 
 ## Drawing your own things
 
